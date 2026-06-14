@@ -1,0 +1,1878 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Great Circle Range Ring Map Generator v5.1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        :root { --accent: #1a2b3c; --halo: #e0b53d; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #0d1117; overflow: hidden; touch-action: none; overscroll-behavior: none; font-family: 'Segoe UI', system-ui, sans-serif; color: #333; }
+        canvas { display: block; touch-action: none; cursor: move; }
+        canvas.panning { cursor: grab; }
+
+        /* â”€â”€ Mobile toggle â”€â”€ */
+        .mobile-toggle {
+            display: none; position: fixed; top: 12px; left: 12px;
+            width: 42px; height: 42px; background: white; z-index: 400;
+            border-radius: 50%; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            font-size: 1.1rem; border: 1px solid rgba(0,0,0,0.1);
+        }
+        @media (max-width: 600px) { .mobile-toggle { display: flex; } }
+
+        /* â”€â”€ Panel â”€â”€ */
+        .panel {
+            position: absolute; top: 12px; left: 12px;
+            background: rgba(255,255,255,0.92); backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px); padding: 15px;
+            border: 1px solid rgba(0,0,0,0.1); width: 245px; z-index: 100;
+            border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+            max-height: 92vh; overflow-y: auto;
+            transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+        }
+        @media (max-width: 600px) {
+            .panel {
+                top: 0; left: 0; height: 100dvh; width: min(310px, 92vw);
+                border-radius: 0; transform: translateX(-110%); padding: 54px 12px 12px;
+                max-height: 100dvh; z-index: 300;
+            }
+            .panel.open { transform: translateX(0); }
+            .footer { display: none; }
+            .hint { margin-top: 6px; }
+            h1 { margin-bottom: 8px; font-size: 0.72rem; }
+            input[type="text"], input[type="range"], textarea, select { margin-bottom: 6px; padding: 6px 7px; }
+            input[type="range"] { padding: 2px 0; }
+            textarea { min-height: 48px; }
+            .section-divider { margin: 7px 0; }
+            .btn-group { gap: 5px; }
+            button.btn-render { padding: 8px 5px; }
+            button.btn-export { padding: 6px 5px; }
+        }
+
+        /* â”€â”€ Typography & controls â”€â”€ */
+        h1 { margin: 0 0 12px 0; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1.2px; border-bottom: 2px solid var(--accent); padding-bottom: 5px; color: var(--accent); }
+        .field-label { font-size: 0.58rem; color: #666; margin-bottom: 3px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; }
+        .section-divider { border: none; border-top: 1px solid rgba(0,0,0,0.08); margin: 10px 0; }
+
+        input[type="text"], input[type="range"], textarea, select {
+            background: rgba(255,255,255,0.75); border: 1px solid rgba(0,0,0,0.13);
+            padding: 7px 8px; width: 100%; margin-bottom: 8px; border-radius: 5px;
+            font-size: 13px; outline: none; transition: border-color 0.2s;
+            -webkit-appearance: none; appearance: none;
+        }
+        input[type="text"]:focus, textarea:focus { border-color: var(--accent); background: rgba(255,255,255,0.98); }
+        input[type="range"] { padding: 4px 0; margin-bottom: 10px; accent-color: var(--accent); cursor: pointer; }
+        textarea { min-height: 74px; resize: vertical; line-height: 1.35; font-family: inherit; }
+        select { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; }
+        @media (max-width: 600px) { input[type="text"], textarea, select { font-size: 16px; } }
+
+        /* â”€â”€ Theme row â€” only shown in vector mode â”€â”€ */
+        .theme-row { display: none; }
+        .theme-row.visible { display: block; }
+
+        /* â”€â”€ Center city row â”€â”€ */
+        .center-row { display: flex; gap: 6px; align-items: flex-end; margin-bottom: 8px; }
+        .center-row input { margin-bottom: 0; flex: 1; }
+        .center-row button { flex-shrink: 0; padding: 7px 10px; font-size: 0.6rem; font-weight: bold; text-transform: uppercase; border: none; border-radius: 5px; cursor: pointer; background: var(--accent); color: white; white-space: nowrap; }
+
+        /* â”€â”€ Destination rows â”€â”€ */
+        .dest-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
+        .dest-row { display: flex; gap: 5px; align-items: center; }
+        .dest-row input { margin-bottom: 0; flex: 1; font-size: 12px; padding: 6px 7px; }
+        .dest-row .dest-num { font-size: 0.55rem; font-weight: bold; color: #999; min-width: 14px; text-align: right; }
+        .dest-row .btn-remove { background: none; border: none; cursor: pointer; color: #bbb; font-size: 0.95rem; line-height: 1; padding: 3px 5px; border-radius: 3px; flex-shrink: 0; }
+        .dest-row .btn-remove:hover { color: #c00; background: rgba(200,0,0,0.07); }
+        .dest-row .dist-pill { font-size: 0.5rem; font-family: monospace; font-weight: bold; background: rgba(0,0,0,0.07); border-radius: 20px; padding: 2px 6px; white-space: nowrap; color: #555; display: none; }
+        .dest-row.resolved .dist-pill { display: inline; }
+
+        .btn-add-dest { width: 100%; padding: 6px; font-size: 0.6rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; border: 1px dashed rgba(0,0,0,0.2); background: transparent; border-radius: 5px; cursor: pointer; color: #666; transition: all 0.15s; margin-bottom: 8px; }
+        .btn-add-dest:hover { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.35); color: #333; }
+        .btn-add-dest:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        /* â”€â”€ Action buttons â”€â”€ */
+        .btn-group { display: flex; flex-direction: column; gap: 6px; }
+        .btn-row { display: flex; gap: 6px; }
+        button.btn-render { background: var(--accent); color: white; font-size: 0.7rem; font-weight: bold; padding: 10px 5px; border: none; border-radius: 5px; cursor: pointer; flex: 1; text-transform: uppercase; }
+        button.btn-render:active { opacity: 0.8; }
+        button.btn-export { background: transparent; color: #333; border: 1px solid rgba(0,0,0,0.2); font-size: 0.6rem; font-weight: bold; padding: 8px 5px; border-radius: 5px; cursor: pointer; flex: 1; text-transform: uppercase; }
+        button.btn-export:active { background: rgba(0,0,0,0.05); }
+
+        .status { font-size: 0.6rem; color: #d32f2f; margin-top: 6px; min-height: 10px; }
+
+        /* â”€â”€ Hint + footer â”€â”€ */
+        .hint {
+            font-size: 0.55rem; color: #999; margin-top: 10px; margin-bottom: 2px;
+            line-height: 1.6; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 8px;
+        }
+        .footer {
+            margin-top: 10px; font-size: 0.55rem; color: #888;
+            border-top: 1px solid rgba(0,0,0,0.08); padding-top: 8px; line-height: 1.7;
+        }
+        .footer a { color: var(--accent); text-decoration: none; font-weight: bold; }
+        .footer a:hover { text-decoration: underline; }
+
+        /* â”€â”€ Modal â”€â”€ */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: min(380px, 90vw); box-shadow: 0 16px 48px rgba(0,0,0,0.3); animation: modalIn 0.22s cubic-bezier(0.34,1.56,0.64,1); }
+        @keyframes modalIn { from { opacity:0; transform: scale(0.88) translateY(10px); } to { opacity:1; transform: scale(1) translateY(0); } }
+        .modal h2 { margin: 0 0 6px 0; font-size: 1rem; color: var(--accent); }
+        .modal p { margin: 0 0 14px 0; font-size: 0.78rem; color: #666; line-height: 1.4; }
+        .modal input { border: 1.5px solid #ddd; padding: 10px 12px; width: 100%; border-radius: 7px; font-size: 16px; margin-bottom: 14px; outline: none; box-sizing: border-box; }
+        .modal input:focus { border-color: var(--accent); }
+        .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+        .modal-btns button { padding: 9px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; font-size: 0.75rem; text-transform: uppercase; }
+        .btn-modal-cancel { background: #f0f0f0; color: #555; }
+        .btn-modal-ok { background: var(--accent); color: white; }
+        .choice-list { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; max-height: 45vh; overflow-y: auto; }
+        .choice-list button { text-align: left; border: 1px solid rgba(0,0,0,0.14); background: #fff; border-radius: 6px; padding: 8px 10px; cursor: pointer; color: #333; }
+        .choice-list button:hover { border-color: var(--accent); background: rgba(0,0,0,0.03); }
+        .choice-name { display: block; font-weight: bold; font-size: 0.82rem; }
+        .choice-meta { display: block; color: #666; font-size: 0.68rem; margin-top: 2px; }
+
+        /* â”€â”€ Loading overlay â”€â”€ */
+        #loading { position: fixed; inset: 0; background: #0d1117; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 500; transition: opacity 0.6s; }
+        #loading.fade { opacity: 0; pointer-events: none; }
+        .load-globe { width: 80px; height: 80px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #4a9eff, #1a3a5c, #0a1628); box-shadow: 0 0 40px rgba(74,158,255,0.3); animation: pulse 1.8s ease-in-out infinite; margin-bottom: 20px; }
+        @keyframes pulse { 0%,100%{transform:scale(1);box-shadow:0 0 40px rgba(74,158,255,0.3)} 50%{transform:scale(1.06);box-shadow:0 0 60px rgba(74,158,255,0.5)} }
+        .load-text { color: rgba(255,255,255,0.7); font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; }
+        .load-sub { color: rgba(255,255,255,0.35); font-size: 0.6rem; margin-top: 6px; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading">
+    <div class="load-globe"></div>
+    <div class="load-text">Great Circle Range Ring Map Generator v5.1</div>
+    <div class="load-sub" id="load-sub">Loading NE_Raster_half.jpg...</div>
+</div>
+
+<!-- Center city modal -->
+<div class="modal-overlay" id="centerModal">
+    <div class="modal">
+        <h2>Set Center City</h2>
+        <p>Type a city name. This will be the hub for range rings and plotted cities.</p>
+        <input type="text" id="modal-city-input" placeholder="e.g. London, Tokyo, Sao Paulo..." autocomplete="off">
+        <div class="modal-btns">
+            <button class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
+            <button class="btn-modal-ok" onclick="confirmCenter()">Set Center</button>
+        </div>
+    </div>
+</div>
+
+<div class="mobile-toggle" id="mobileToggle" onclick="togglePanel()" role="button" aria-label="Toggle controls" aria-expanded="false">&#9776;</div>
+
+<!-- Ambiguous place modal -->
+<div class="modal-overlay" id="placeChoiceModal">
+    <div class="modal">
+        <h2>Choose Location</h2>
+        <p id="place-choice-prompt">More than one place matched that city name.</p>
+        <div class="choice-list" id="place-choice-list"></div>
+        <div class="modal-btns">
+            <button class="btn-modal-cancel" onclick="cancelPlaceChoice()">Skip</button>
+        </div>
+    </div>
+</div>
+
+<div class="panel" id="controlPanel">
+    <h1>Great Circle Range Ring Map Generator v5.1</h1>
+
+    <!-- Map mode -->
+    <div class="field-label">Map Style</div>
+    <select id="map-mode" onchange="onMapModeChange()">
+        <option value="raster" selected>Natural Earth Raster</option>
+        <option value="vector">Vector (MetBrewer)</option>
+    </select>
+
+    <!-- Vector theme â€” only shown in vector mode -->
+    <div class="theme-row" id="theme-row">
+        <div class="field-label">Theme</div>
+        <select id="theme-selector" onchange="updateTheme()"></select>
+    </div>
+
+    <!-- View rotation -->
+    <div class="field-label">View Rotation</div>
+    <input type="range" id="view-rotation" min="-180" max="180" value="0" oninput="requestRender()">
+
+    <div class="field-label">Zoom Level</div>
+    <select id="zoom-level" onchange="setZoomLevel(this.value)">
+        <option value="0.75">Wide</option>
+        <option value="1" selected>Standard</option>
+        <option value="1.35">Close</option>
+        <option value="1.8">Detail</option>
+        <option value="2.4">Regional</option>
+        <option value="3.5">Country</option>
+        <option value="5">Maximum</option>
+    </select>
+
+    <div class="field-label">Label Size <span id="label-size-value">11px</span></div>
+    <input type="range" id="label-size" min="8" max="25" value="11" oninput="updateLabelSizeControl()">
+
+    <hr class="section-divider">
+
+    <!-- Center city -->
+    <div class="field-label">Center City</div>
+    <div class="center-row">
+        <input type="text" id="center-display" placeholder="e.g. New York" autocomplete="off">
+        <button onclick="updateCenterFromInput()">Set</button>
+    </div>
+
+    <!-- Range rings -->
+    <div class="field-label">Range Rings (km)</div>
+    <input type="text" id="range-rings-input" value="1000, 2000, 5000" placeholder="e.g. 5000, 10000">
+
+    <!-- Cities -->
+    <div class="field-label">Cities To Plot</div>
+    <textarea id="city-list-input" placeholder="e.g. Los Angeles, Paris, Tokyo"></textarea>
+
+    <!-- Actions -->
+    <div class="btn-group">
+        <button class="btn-render" onclick="handleSearch()">Generate Map</button>
+        <div class="btn-row">
+            <button class="btn-export" onclick="exportPNG('window')">Export<br>Window</button>
+            <button class="btn-export" onclick="exportPNG('globe')">Export<br>Globe</button>
+        </div>
+        <div class="btn-row">
+            <button class="btn-export" onclick="exportGeoJSON()">Export<br>GeoJSON</button>
+        </div>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div class="hint">
+        Drag - rotate &nbsp;|&nbsp; Shift+drag - pan<br>
+        Scroll/pinch - zoom &nbsp;|&nbsp; Two-finger drag - pan
+    </div>
+
+    <div class="footer">
+        <strong>Great Circle Range Ring Map Generator v5.1</strong><br>
+        Script by <a href="https://www.thinkinginspace.net" target="_blank">@RhodesMaps</a><br>
+        <a href="https://www.thinkinginspace.net" target="_blank">thinkinginspace.net</a> &nbsp;|&nbsp;
+        <a href="https://www.mapspam.net" target="_blank">mapspam.net</a><br><br>
+        Built with <a href="https://d3js.org" target="_blank">D3.js</a> &amp;
+        <a href="https://github.com/junkwhinger/topojson" target="_blank">TopoJSON</a><br>
+        Basemap: <a href="https://www.naturalearthdata.com" target="_blank">Natural Earth</a><br>
+        Geocoding: <a href="https://nominatim.org" target="_blank">Nominatim / OSM</a><br>
+        Vector palettes: <a href="https://github.com/BlakeRMills/MetBrewer" target="_blank">MetBrewer</a>
+    </div>
+</div>
+
+<canvas id="globe"></canvas>
+
+<script src="lib/d3.v7.min.js"></script>
+<script src="lib/topojson.min.js"></script>
+<script>
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PALETTES (MetBrewer)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+const palettes = [
+    {"name":"Monochrome: Outline","colors":["#ffffff","#ffffff","#111111","#111111"]},
+    {"name":"Monochrome: Light Grayscale","colors":["#f4f5f7","#d6d9de","#9aa3ad","#2b3137"]},
+    {"name":"Monochrome: Night Mode","colors":["#0f1318","#232a33","#515b67","#f2f4f7"]},
+    {"name":"Blue: Polar","colors":["#edf6ff","#bfdcf6","#73a9d8","#2f5f8f","#12304a"]},
+    {"name":"Blue: Atlantic","colors":["#d9eef7","#8ec5dd","#4d88b3","#24516f","#10283d"]},
+    {"name":"Blue: Midnight","colors":["#081421","#12304a","#1e4f73","#6da3c8","#d6e9f7"]},
+    {"name":"Richard Edes Harrison","colors":["#5b7c9b","#e0b53d","#c48b26","#1a2b3c"]},
+    {"name":"Map: Atlas","colors":["#dfe7ef","#f8f6ee","#3b6ea5","#234f7a","#1f3850"]},
+    {"name":"Map: Plum","colors":["#ece7ef","#fbf8fb","#7f6388","#5a3569","#3e2848"]},
+    {"name":"Map: Fjord","colors":["#d8e7ea","#f7f8f5","#4f8792","#276272","#23434a"]},
+    {"name":"Map: Moss","colors":["#e2e8df","#fbfaf4","#748563","#4d6438","#344126"]},
+    {"name":"Map: Mist","colors":["#eef1f3","#ffffff","#8fa1ad","#586e7d","#394954"]},
+    {"name":"Map: Ember","colors":["#eee7df","#fffaf4","#a06f63","#7d3f34","#4f302b"]},
+    {"name":"Map: Inkwash","colors":["#e9edf0","#fafafa","#49535c","#232b33","#20262d"]},
+    {"name":"Met: Archambault","colors":["#f9d14a","#ed968c","#88a0dc","#e78429","#7c4b73","#ab3329","#381a61"]},
+    {"name":"Met: Austria","colors":["#ffcd12","#b86092","#00b7a7","#007e2f","#721b3e","#16317d","#a40000"]},
+    {"name":"Met: Benedictus","colors":["#ffffff","#eaf3ff","#f9e0e8","#c5daf6","#f9b4c9","#a1c2ed","#f28aaa","#6996e3","#d8527c","#b93961","#4060c8","#9a133d","#1a318b"]},
+    {"name":"Met: Cassatt1","colors":["#edd7d9","#c9c9dd","#e3aba7","#9d9dc7","#d88782","#8282aa","#b1615c","#5a5a83"]},
+    {"name":"Met: Cassatt2","colors":["#dec5da","#c1d1aa","#b695bc","#7fa074","#90719f","#466c4b","#574571","#2c4b27","#2d223c","#0e2810"]},
+    {"name":"Met: Cross","colors":["#ffbb44","#ee8577","#eb7926","#122451"]},
+    {"name":"Met: Degas","colors":["#e5a335","#418979","#556219","#053c29"]},
+    {"name":"Met: Demuth","colors":["#f7c267","#b9b9b8","#d39a2d","#262d42"]},
+    {"name":"Met: Derain","colors":["#efc86e","#aab5d5","#97c684","#454a74"]},
+    {"name":"Met: Egypt","colors":["#fab255","#43b284","#dd5129","#0f7ba2"]},
+    {"name":"Met: Gauguin","colors":["#c88a2c","#b04948","#9e4013","#1a472a"]},
+    {"name":"Met: Greek","colors":["#f5c34d","#ed9b49","#e67424","#3c0d03"]},
+    {"name":"Met: Hiroshige","colors":["#ffe6b7","#ffd06f","#aadce0","#1e466e"]},
+    {"name":"Met: Hokusai1","colors":["#edc775","#94b594","#e09351","#6d2f20"]},
+    {"name":"Met: Hokusai2","colors":["#abc9c8","#72aeb6","#4692b0","#0a3351"]},
+    {"name":"Met: Hokusai3","colors":["#d8d97a","#74c8c3","#95c36e","#0a2e57"]},
+    {"name":"Met: Homer1","colors":["#fff179","#c3f4f6","#f5b642","#551f00"]},
+    {"name":"Met: Homer2","colors":["#f9c53b","#aeac4c","#e9851d","#165d43"]},
+    {"name":"Met: Isfahan1","colors":["#e3c28b","#4fb6ca","#ae8548","#054544"]},
+    {"name":"Met: Isfahan2","colors":["#d7aca1","#ddc000","#79ad41","#4063a3"]},
+    {"name":"Met: Java","colors":["#e2998a","#ea7428","#cf3a36","#663171"]},
+    {"name":"Met: Johnson","colors":["#f6c200","#d04e00","#0086a8","#132b69"]},
+    {"name":"Met: Juarez","colors":["#f1af3a","#cf5e4e","#208cc0","#003967"]},
+    {"name":"Met: Klimt","colors":["#eacc62","#df9ed4","#469d76","#3c4b99"]},
+    {"name":"Met: Lakota","colors":["#f0be3d","#da7901","#04a3bd","#20235b"]},
+    {"name":"Met: Manet","colors":["#ede2cc","#ebc174","#7ec5f4","#3b2319"]},
+    {"name":"Met: Monet","colors":["#e3cacf","#c2cae3","#abccbe","#41507b"]},
+    {"name":"Met: Moreau","colors":["#8dadca","#bc7524","#527baa","#421600"]},
+    {"name":"Met: Morgenstern","colors":["#ffc680","#dfbbc8","#ffb178","#a56457"]},
+    {"name":"Met: Nattier","colors":["#52271c","#944839","#c08e39","#7f793c","#565c33","#184948","#022a2a"]},
+    {"name":"Met: Navajo","colors":["#edce79","#e1c59a","#e59a52","#660d20"]},
+    {"name":"Met: NewKingdom","colors":["#e6bb9e","#9eb4e0","#e1846c","#735852"]},
+    {"name":"Met: Nizami","colors":["#edb144","#8cc8bc","#7da7ea","#1d4497"]},
+    {"name":"Met: Ingres","colors":["#041d2c","#06314e","#18527e","#2e77ab","#d1b252","#a97f2f","#7e5522","#472c0b"]},
+    {"name":"Met: Kandinsky","colors":["#3b7c70","#ce9642","#898e9f","#3b3a3e"]},
+    {"name":"Met: OKeeffe1","colors":["#f6f2ee","#bad6f9","#fbc2a9","#6b200c"]},
+    {"name":"Met: Peru1","colors":["#31c7ba","#369cc9","#e35e28","#3a507f"]},
+    {"name":"Met: Peru2","colors":["#f19425","#c59349","#c0431f","#65150b"]},
+    {"name":"Met: Pillement","colors":["#a9845b","#738e8e","#697852","#0f252f"]},
+    {"name":"Met: Pissaro","colors":["#8dc7dc","#8cae9e","#508ca7","#0e2a4d"]},
+    {"name":"Met: Redon","colors":["#d8b847","#d48f90","#df8d71","#1e395f"]},
+    {"name":"Met: Renoir","colors":["#f6b3b0","#f5bb50","#9d9cd5","#17154f"]},
+    {"name":"Met: Robert","colors":["#df9ed4","#c93f55","#efc26e","#17375e"]},
+    {"name":"Met: Signac","colors":["#fbe183","#f4c40f","#fe9b00","#d8443c","#9b3441","#38485c","#1b2326"]},
+    {"name":"Met: Tam","colors":["#ffd353","#ffb242","#ef8737","#341648"]},
+    {"name":"Met: Tiepolo","colors":["#e8b960","#ce9344","#508ea2","#17486f"]},
+    {"name":"Met: Troy","colors":["#421401","#6c1d0e","#8b3a2b","#c27668","#7ba0b4","#44728c","#235070","#0a2d46"]},
+    {"name":"Met: Tsimshian","colors":["#582310","#aa361d","#82c45f","#318f49","#0cb4bb","#2673a3","#473d7d"]},
+    {"name":"Met: VanGogh1","colors":["#87bcbd","#969bc7","#89ab7c","#2c2d54"]},
+    {"name":"Met: VanGogh2","colors":["#c3d6ce","#eebe04","#e9a00e","#454b87"]},
+    {"name":"Met: VanGogh3","colors":["#e7e5cc","#c2d6a4","#9cc184","#192813"]},
+    {"name":"Met: Veronese","colors":["#67322e","#99610a","#c38f16","#6e948c","#2c6b67","#175449","#122c43"]}
+];
+
+const VECTOR_THEME_ANNOTATIONS = {
+    "Monochrome: Outline":         { routeColor:"#111111", routePillBg:"#ffffff", routePillText:"#111111", cityPillBg:"#ffffff", cityPillText:"#111111", dotColor:"#111111" },
+    "Monochrome: Light Grayscale": { routeColor:"#2b3137", routePillBg:"#f4f5f7", routePillText:"#2b3137", cityPillBg:"#d6d9de", cityPillText:"#2b3137", dotColor:"#2b3137" },
+    "Monochrome: Night Mode":      { routeColor:"#f2f4f7", routePillBg:"#232a33", routePillText:"#f2f4f7", cityPillBg:"#515b67", cityPillText:"#f2f4f7", dotColor:"#f2f4f7" },
+    "Blue: Polar":                 { routeColor:"#12304a", routePillBg:"#edf6ff", routePillText:"#12304a", cityPillBg:"#73a9d8", cityPillText:"#12304a", dotColor:"#12304a" },
+    "Blue: Atlantic":              { routeColor:"#10283d", routePillBg:"#d9eef7", routePillText:"#10283d", cityPillBg:"#4d88b3", cityPillText:"#10283d", dotColor:"#10283d" },
+    "Blue: Midnight":              { routeColor:"#d6e9f7", routePillBg:"#12304a", routePillText:"#d6e9f7", cityPillBg:"#1e4f73", cityPillText:"#d6e9f7", dotColor:"#d6e9f7" },
+    "Richard Edes Harrison":       { routeColor:"#1a2b3c", routePillBg:"#e0b53d", routePillText:"#1a2b3c", cityPillBg:"#c48b26", cityPillText:"#1a2b3c", dotColor:"#1a2b3c" },
+    "Map: Atlas":                  { routeColor:"#234f7a", routePillBg:"#f8f6ee", routePillText:"#234f7a", cityPillBg:"#dfe7ef", cityPillText:"#1f3850", dotColor:"#234f7a" },
+    "Map: Plum":                   { routeColor:"#5a3569", routePillBg:"#fbf8fb", routePillText:"#5a3569", cityPillBg:"#ece7ef", cityPillText:"#3e2848", dotColor:"#5a3569" },
+    "Map: Fjord":                  { routeColor:"#276272", routePillBg:"#f7f8f5", routePillText:"#276272", cityPillBg:"#d8e7ea", cityPillText:"#23434a", dotColor:"#276272" },
+    "Map: Moss":                   { routeColor:"#4d6438", routePillBg:"#fbfaf4", routePillText:"#4d6438", cityPillBg:"#e2e8df", cityPillText:"#344126", dotColor:"#4d6438" },
+    "Map: Mist":                   { routeColor:"#586e7d", routePillBg:"#ffffff", routePillText:"#586e7d", cityPillBg:"#eef1f3", cityPillText:"#394954", dotColor:"#586e7d" },
+    "Map: Ember":                  { routeColor:"#7d3f34", routePillBg:"#fffaf4", routePillText:"#7d3f34", cityPillBg:"#eee7df", cityPillText:"#4f302b", dotColor:"#7d3f34" },
+    "Map: Inkwash":                { routeColor:"#232b33", routePillBg:"#fafafa", routePillText:"#232b33", cityPillBg:"#e9edf0", cityPillText:"#20262d", dotColor:"#232b33" },
+    "Met: Archambault":            { routeColor:"#381a61", routePillBg:"#f9d14a", routePillText:"#381a61", cityPillBg:"#88a0dc", cityPillText:"#381a61", dotColor:"#381a61" },
+    "Met: Austria":                { routeColor:"#16317d", routePillBg:"#ffcd12", routePillText:"#16317d", cityPillBg:"#00b7a7", cityPillText:"#16317d", dotColor:"#16317d" },
+    "Met: Benedictus":             { routeColor:"#1a318b", routePillBg:"#ffffff", routePillText:"#1a318b", cityPillBg:"#c5daf6", cityPillText:"#1a318b", dotColor:"#1a318b" },
+    "Met: Cassatt1":               { routeColor:"#5a5a83", routePillBg:"#edd7d9", routePillText:"#5a5a83", cityPillBg:"#c9c9dd", cityPillText:"#5a5a83", dotColor:"#5a5a83" },
+    "Met: Cassatt2":               { routeColor:"#2d223c", routePillBg:"#dec5da", routePillText:"#2d223c", cityPillBg:"#c1d1aa", cityPillText:"#2d223c", dotColor:"#2d223c" },
+    "Met: Cross":                  { routeColor:"#122451", routePillBg:"#ffbb44", routePillText:"#122451", cityPillBg:"#ee8577", cityPillText:"#122451", dotColor:"#122451" },
+    "Met: Degas":                  { routeColor:"#053c29", routePillBg:"#e5a335", routePillText:"#053c29", cityPillBg:"#418979", cityPillText:"#053c29", dotColor:"#053c29" },
+    "Met: Demuth":                 { routeColor:"#262d42", routePillBg:"#f7c267", routePillText:"#262d42", cityPillBg:"#b9b9b8", cityPillText:"#262d42", dotColor:"#262d42" },
+    "Met: Derain":                 { routeColor:"#454a74", routePillBg:"#efc86e", routePillText:"#454a74", cityPillBg:"#aab5d5", cityPillText:"#454a74", dotColor:"#454a74" },
+    "Met: Egypt":                  { routeColor:"#0f7ba2", routePillBg:"#fab255", routePillText:"#0f7ba2", cityPillBg:"#43b284", cityPillText:"#0f7ba2", dotColor:"#0f7ba2" },
+    "Met: Gauguin":                { routeColor:"#1a472a", routePillBg:"#c88a2c", routePillText:"#1a472a", cityPillBg:"#b04948", cityPillText:"#1a472a", dotColor:"#1a472a" },
+    "Met: Greek":                  { routeColor:"#3c0d03", routePillBg:"#f5c34d", routePillText:"#3c0d03", cityPillBg:"#ed9b49", cityPillText:"#3c0d03", dotColor:"#3c0d03" },
+    "Met: Hiroshige":              { routeColor:"#1e466e", routePillBg:"#ffe6b7", routePillText:"#1e466e", cityPillBg:"#aadce0", cityPillText:"#1e466e", dotColor:"#1e466e" },
+    "Met: Hokusai1":               { routeColor:"#6d2f20", routePillBg:"#edc775", routePillText:"#6d2f20", cityPillBg:"#94b594", cityPillText:"#6d2f20", dotColor:"#6d2f20" },
+    "Met: Hokusai2":               { routeColor:"#0a3351", routePillBg:"#abc9c8", routePillText:"#0a3351", cityPillBg:"#72aeb6", cityPillText:"#0a3351", dotColor:"#0a3351" },
+    "Met: Hokusai3":               { routeColor:"#0a2e57", routePillBg:"#d8d97a", routePillText:"#0a2e57", cityPillBg:"#74c8c3", cityPillText:"#0a2e57", dotColor:"#0a2e57" },
+    "Met: Homer1":                 { routeColor:"#551f00", routePillBg:"#fff179", routePillText:"#551f00", cityPillBg:"#c3f4f6", cityPillText:"#551f00", dotColor:"#551f00" },
+    "Met: Homer2":                 { routeColor:"#165d43", routePillBg:"#f9c53b", routePillText:"#165d43", cityPillBg:"#aeac4c", cityPillText:"#165d43", dotColor:"#165d43" },
+    "Met: Isfahan1":               { routeColor:"#054544", routePillBg:"#e3c28b", routePillText:"#054544", cityPillBg:"#4fb6ca", cityPillText:"#054544", dotColor:"#054544" },
+    "Met: Isfahan2":               { routeColor:"#4063a3", routePillBg:"#d7aca1", routePillText:"#4063a3", cityPillBg:"#ddc000", cityPillText:"#4063a3", dotColor:"#4063a3" },
+    "Met: Java":                   { routeColor:"#663171", routePillBg:"#e2998a", routePillText:"#663171", cityPillBg:"#ea7428", cityPillText:"#663171", dotColor:"#663171" },
+    "Met: Johnson":                { routeColor:"#132b69", routePillBg:"#f6c200", routePillText:"#132b69", cityPillBg:"#0086a8", cityPillText:"#132b69", dotColor:"#132b69" },
+    "Met: Juarez":                 { routeColor:"#003967", routePillBg:"#f1af3a", routePillText:"#003967", cityPillBg:"#208cc0", cityPillText:"#003967", dotColor:"#003967" },
+    "Met: Klimt":                  { routeColor:"#3c4b99", routePillBg:"#eacc62", routePillText:"#3c4b99", cityPillBg:"#df9ed4", cityPillText:"#3c4b99", dotColor:"#3c4b99" },
+    "Met: Lakota":                 { routeColor:"#20235b", routePillBg:"#f0be3d", routePillText:"#20235b", cityPillBg:"#04a3bd", cityPillText:"#20235b", dotColor:"#20235b" },
+    "Met: Manet":                  { routeColor:"#3b2319", routePillBg:"#ede2cc", routePillText:"#3b2319", cityPillBg:"#7ec5f4", cityPillText:"#3b2319", dotColor:"#3b2319" },
+    "Met: Monet":                  { routeColor:"#41507b", routePillBg:"#e3cacf", routePillText:"#41507b", cityPillBg:"#c2cae3", cityPillText:"#41507b", dotColor:"#41507b" },
+    "Met: Moreau":                 { routeColor:"#421600", routePillBg:"#8dadca", routePillText:"#421600", cityPillBg:"#527baa", cityPillText:"#421600", dotColor:"#421600" },
+    "Met: Morgenstern":            { routeColor:"#a56457", routePillBg:"#ffc680", routePillText:"#a56457", cityPillBg:"#dfbbc8", cityPillText:"#a56457", dotColor:"#a56457" },
+    "Met: Nattier":                { routeColor:"#022a2a", routePillBg:"#c08e39", routePillText:"#022a2a", cityPillBg:"#184948", cityPillText:"#c08e39", dotColor:"#022a2a" },
+    "Met: Navajo":                 { routeColor:"#660d20", routePillBg:"#edce79", routePillText:"#660d20", cityPillBg:"#e1c59a", cityPillText:"#660d20", dotColor:"#660d20" },
+    "Met: NewKingdom":             { routeColor:"#735852", routePillBg:"#e6bb9e", routePillText:"#735852", cityPillBg:"#9eb4e0", cityPillText:"#735852", dotColor:"#735852" },
+    "Met: Nizami":                 { routeColor:"#1d4497", routePillBg:"#edb144", routePillText:"#1d4497", cityPillBg:"#8cc8bc", cityPillText:"#1d4497", dotColor:"#1d4497" },
+    "Met: Ingres":                 { routeColor:"#d1b252", routePillBg:"#041d2c", routePillText:"#d1b252", cityPillBg:"#2e77ab", cityPillText:"#d1b252", dotColor:"#d1b252" },
+    "Met: Kandinsky":              { routeColor:"#ce9642", routePillBg:"#3b3a3e", routePillText:"#ce9642", cityPillBg:"#898e9f", cityPillText:"#3b3a3e", dotColor:"#ce9642" },
+    "Met: OKeeffe1":               { routeColor:"#133e7e", routePillBg:"#f6f2ee", routePillText:"#133e7e", cityPillBg:"#bad6f9", cityPillText:"#133e7e", dotColor:"#133e7e" },
+    "Met: Peru1":                  { routeColor:"#3a507f", routePillBg:"#31c7ba", routePillText:"#3a507f", cityPillBg:"#369cc9", cityPillText:"#3a507f", dotColor:"#3a507f" },
+    "Met: Peru2":                  { routeColor:"#65150b", routePillBg:"#f19425", routePillText:"#65150b", cityPillBg:"#c59349", cityPillText:"#65150b", dotColor:"#65150b" },
+    "Met: Pillement":              { routeColor:"#0f252f", routePillBg:"#a9845b", routePillText:"#0f252f", cityPillBg:"#738e8e", cityPillText:"#0f252f", dotColor:"#0f252f" },
+    "Met: Pissaro":                { routeColor:"#0e2a4d", routePillBg:"#8dc7dc", routePillText:"#0e2a4d", cityPillBg:"#8cae9e", cityPillText:"#0e2a4d", dotColor:"#0e2a4d" },
+    "Met: Redon":                  { routeColor:"#1e395f", routePillBg:"#d8b847", routePillText:"#1e395f", cityPillBg:"#d48f90", cityPillText:"#1e395f", dotColor:"#1e395f" },
+    "Met: Renoir":                 { routeColor:"#17154f", routePillBg:"#f5bb50", routePillText:"#17154f", cityPillBg:"#f6b3b0", cityPillText:"#17154f", dotColor:"#17154f" },
+    "Met: Robert":                 { routeColor:"#17375e", routePillBg:"#efc26e", routePillText:"#17375e", cityPillBg:"#df9ed4", cityPillText:"#17375e", dotColor:"#17375e" },
+    "Met: Signac":                 { routeColor:"#1b2326", routePillBg:"#fbe183", routePillText:"#1b2326", cityPillBg:"#38485c", cityPillText:"#fbe183", dotColor:"#1b2326" },
+    "Met: Tam":                    { routeColor:"#341648", routePillBg:"#ffd353", routePillText:"#341648", cityPillBg:"#ffb242", cityPillText:"#341648", dotColor:"#341648" },
+    "Met: Tiepolo":                { routeColor:"#17486f", routePillBg:"#e8b960", routePillText:"#17486f", cityPillBg:"#508ea2", cityPillText:"#17486f", dotColor:"#17486f" },
+    "Met: Troy":                   { routeColor:"#7ba0b4", routePillBg:"#0a2d46", routePillText:"#7ba0b4", cityPillBg:"#c27668", cityPillText:"#0a2d46", dotColor:"#7ba0b4" },
+    "Met: Tsimshian":              { routeColor:"#0cb4bb", routePillBg:"#473d7d", routePillText:"#0cb4bb", cityPillBg:"#82c45f", cityPillText:"#473d7d", dotColor:"#0cb4bb" },
+    "Met: VanGogh1":               { routeColor:"#2c2d54", routePillBg:"#87bcbd", routePillText:"#2c2d54", cityPillBg:"#969bc7", cityPillText:"#2c2d54", dotColor:"#2c2d54" },
+    "Met: VanGogh2":               { routeColor:"#454b87", routePillBg:"#c3d6ce", routePillText:"#454b87", cityPillBg:"#eebe04", cityPillText:"#454b87", dotColor:"#454b87" },
+    "Met: VanGogh3":               { routeColor:"#192813", routePillBg:"#e7e5cc", routePillText:"#192813", cityPillBg:"#c2d6a4", cityPillText:"#192813", dotColor:"#192813" },
+    "Met: Veronese":               { routeColor:"#c38f16", routePillBg:"#122c43", routePillText:"#c38f16", cityPillBg:"#6e948c", cityPillText:"#122c43", dotColor:"#c38f16" }
+};
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CONSTANTS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+const RASTER_IMG_URL = 'NE_Raster_half.jpg';
+const classicFont    = 'bold 1px "Palatino Linotype","Palatino","Book Antiqua",serif';
+
+// Raster-mode overlay colors (always readable on terrain)
+const RASTER_ROUTE_COLOR  = 'rgba(255,255,255,0.92)';
+const RASTER_PILL_BG      = 'rgba(20,30,48,0.85)';
+const RASTER_PILL_TEXT    = '#ffffff';
+const RASTER_CITY_PILL_BG = 'rgba(255,255,255,0.93)';
+const RASTER_CITY_TEXT    = '#ffffff';
+const RASTER_DOT          = '#ffffff';
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// STATE
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+const canvas = document.getElementById('globe');
+const ctx    = canvas.getContext('2d');
+let width, height, initialScale;
+let mapMode = 'raster';       // 'raster' | 'vector'
+let currentTheme = {};
+let vectorReady  = false;     // true once TopoJSON is loaded
+let land, countries, lakes;
+let currentZoomLevel = 1;
+
+document.getElementById('map-mode').value = mapMode;
+document.getElementById('theme-row').classList.toggle('visible', mapMode === 'vector');
+
+const projection = d3.geoOrthographic().clipAngle(90).precision(0.3);
+let centerCity = { name: 'London', coords: [-0.1278, 51.5074] };
+let destRows = [];
+let plottedCities = [];
+let rangeRings = [1000, 2000, 5000];
+const geocodeCache = new Map();
+let localGazetteerPromise = null;
+let localCityIndex = null;
+let pendingPlaceChoice = null;
+
+function getLabelSizes() {
+    const city = Number(document.getElementById('label-size')?.value) || 11;
+    return {
+        city,
+        range: Math.max(8, Math.round(city * 0.9)),
+        route: Math.max(8, Math.round(city * 0.85))
+    };
+}
+
+function clampScale(scale) {
+    const base = initialScale || Math.min(window.innerWidth, window.innerHeight) * 0.42 || 250;
+    return Math.max(base * 0.45, Math.min(base * 12, scale));
+}
+
+function zoomAt(screenPoint, factor) {
+    const oldScale = projection.scale();
+    const newScale = clampScale(oldScale * factor);
+    if (!Number.isFinite(newScale) || newScale === oldScale) return;
+
+    const t = projection.translate();
+    const k = newScale / oldScale;
+    projection.scale(newScale);
+    if (initialScale) currentZoomLevel = newScale / initialScale;
+    projection.translate([
+        screenPoint[0] - (screenPoint[0] - t[0]) * k,
+        screenPoint[1] - (screenPoint[1] - t[1]) * k
+    ]);
+}
+
+function setZoomLevel(value) {
+    currentZoomLevel = Number(value) || 1;
+    projection.scale(clampScale(initialScale * currentZoomLevel));
+    requestRender();
+}
+
+function updateLabelSizeControl() {
+    const labelSize = document.getElementById('label-size');
+    const value = labelSize ? labelSize.value : '11';
+    const readout = document.getElementById('label-size-value');
+    if (readout) readout.textContent = value + 'px';
+    requestRender();
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// RASTER
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+let rasterData = null, rasterW = 0, rasterH = 0, rasterReady = false;
+let rasterFrameCanvas = null, rasterFrameCtx = null;
+let renderQueued = false;
+
+function loadRaster() {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            document.getElementById('load-sub').textContent = 'Processing image data...';
+            const W = 2700, H = 1350;
+            const off = document.createElement('canvas');
+            off.width = W; off.height = H;
+            const offCtx = off.getContext('2d');
+            offCtx.drawImage(img, 0, 0, W, H);
+            rasterW = W; rasterH = H;
+            rasterData = offCtx.getImageData(0, 0, W, H).data;
+            rasterReady = true;
+            resolve();
+        };
+        img.onerror = () => reject(new Error('Could not load ' + RASTER_IMG_URL + ' - ensure it is in the same directory.'));
+        img.src = RASTER_IMG_URL;
+    });
+}
+
+function sampleRaster(lon, lat) {
+    const fx = Math.max(0, Math.min(rasterW - 1, (lon + 180) / 360 * (rasterW - 1)));
+    const fy = Math.max(0, Math.min(rasterH - 1, (90 - lat) / 180 * (rasterH - 1)));
+    const x0 = Math.floor(fx);
+    const y0 = Math.floor(fy);
+    const x1 = Math.min(rasterW - 1, x0 + 1);
+    const y1 = Math.min(rasterH - 1, y0 + 1);
+    const tx = fx - x0;
+    const ty = fy - y0;
+
+    const i00 = (y0 * rasterW + x0) * 4;
+    const i10 = (y0 * rasterW + x1) * 4;
+    const i01 = (y1 * rasterW + x0) * 4;
+    const i11 = (y1 * rasterW + x1) * 4;
+
+    const w00 = (1 - tx) * (1 - ty);
+    const w10 = tx * (1 - ty);
+    const w01 = (1 - tx) * ty;
+    const w11 = tx * ty;
+
+    return [
+        Math.round(rasterData[i00]     * w00 + rasterData[i10]     * w10 + rasterData[i01]     * w01 + rasterData[i11]     * w11),
+        Math.round(rasterData[i00 + 1] * w00 + rasterData[i10 + 1] * w10 + rasterData[i01 + 1] * w01 + rasterData[i11 + 1] * w11),
+        Math.round(rasterData[i00 + 2] * w00 + rasterData[i10 + 2] * w10 + rasterData[i01 + 2] * w01 + rasterData[i11 + 2] * w11)
+    ];
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// VECTOR THEME
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function updateTheme() {
+    const p = palettes[document.getElementById('theme-selector').value];
+    const darkest = d3.least(p.colors, c => d3.hsl(c).l);
+    const lightest = d3.greatest(p.colors, c => d3.hsl(c).l);
+    const annotation = VECTOR_THEME_ANNOTATIONS[p.name] || {
+        routeColor: darkest,
+        routePillBg: lightest,
+        routePillText: darkest,
+        cityPillBg: p.colors[1] || lightest,
+        cityPillText: darkest,
+        dotColor: darkest
+    };
+    currentTheme = {
+        name: p.name,
+        palette: p.colors,
+        ocean: p.colors[0], land: p.colors[1],
+        borders: p.colors[2] || p.colors[0],
+        darkest, lightest, halo: p.colors[0],
+        routeColor: annotation.routeColor,
+        routePillBg: annotation.routePillBg,
+        routePillText: annotation.routePillText,
+        cityPillBg: annotation.cityPillBg,
+        cityPillText: annotation.cityPillText,
+        dotColor: annotation.dotColor,
+        isOutline: p.name === 'Monochrome: Outline'
+    };
+    document.documentElement.style.setProperty('--accent', currentTheme.darkest);
+    document.documentElement.style.setProperty('--halo',   currentTheme.ocean);
+    requestRender();
+}
+
+// Populate theme selector
+const sel = document.getElementById('theme-selector');
+palettes.forEach((p, i) => {
+    const opt = document.createElement('option');
+    opt.value = i; opt.textContent = p.name;
+    sel.appendChild(opt);
+});
+const DEFAULT_VECTOR_THEME = palettes.findIndex(p => p.name === 'Blue: Atlantic');
+if (DEFAULT_VECTOR_THEME >= 0) sel.value = DEFAULT_VECTOR_THEME;
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MAP MODE SWITCH
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function onMapModeChange() {
+    mapMode = document.getElementById('map-mode').value;
+    document.getElementById('theme-row').classList.toggle('visible', mapMode === 'vector');
+    // In vector mode, reset accent to theme darkest; in raster mode restore default
+    if (mapMode === 'vector') {
+        if (DEFAULT_VECTOR_THEME >= 0) document.getElementById('theme-selector').value = DEFAULT_VECTOR_THEME;
+        updateTheme();
+    } else {
+        document.documentElement.style.setProperty('--accent', '#1a2b3c');
+        document.documentElement.style.setProperty('--halo',   '#e0b53d');
+        requestRender();
+    }
+}
+
+function requestRender() {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => {
+        renderQueued = false;
+        render();
+    });
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// HELPERS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function isVisible(coords) {
+    const c = projection.invert([width/2, height/2]);
+    return c ? d3.geoDistance(coords, c) < Math.PI / 2 : false;
+}
+
+function geodeticMidpoint(c1, c2) {
+    return d3.geoInterpolate(c1, c2)(0.5);
+}
+
+function relativeLuminance(color) {
+    const { r, g, b } = d3.rgb(color);
+    const channel = v => {
+        const srgb = v / 255;
+        return srgb <= 0.04045 ? srgb / 12.92 : Math.pow((srgb + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+function contrastRatio(a, b) {
+    const l1 = relativeLuminance(a);
+    const l2 = relativeLuminance(b);
+    const light = Math.max(l1, l2);
+    const dark = Math.min(l1, l2);
+    return (light + 0.05) / (dark + 0.05);
+}
+
+function bestContrastingColor(bgColor, palette, fallback) {
+    let bestColor = fallback || palette[0];
+    let bestRatio = -1;
+    palette.forEach(color => {
+        const ratio = contrastRatio(bgColor, color);
+        if (ratio > bestRatio) {
+            bestRatio = ratio;
+            bestColor = color;
+        }
+    });
+    return bestColor;
+}
+
+function drawPill(tCtx, text, bgColor, textColor, fontSize) {
+    tCtx.font = classicFont.replace('1px', fontSize + 'px');
+    const tw  = tCtx.measureText(text).width;
+    const pad = 4, bh = fontSize + pad * 2, rx = bh / 2;
+    const bx  = -tw/2 - pad, by = -bh/2;
+    tCtx.fillStyle = bgColor;
+    tCtx.beginPath();
+    tCtx.moveTo(bx+rx, by);
+    tCtx.lineTo(bx+tw+pad*2-rx, by);
+    tCtx.quadraticCurveTo(bx+tw+pad*2, by,    bx+tw+pad*2, by+rx);
+    tCtx.lineTo(bx+tw+pad*2, by+bh-rx);
+    tCtx.quadraticCurveTo(bx+tw+pad*2, by+bh, bx+tw+pad*2-rx, by+bh);
+    tCtx.lineTo(bx+rx, by+bh);
+    tCtx.quadraticCurveTo(bx, by+bh, bx, by+bh-rx);
+    tCtx.lineTo(bx, by+rx);
+    tCtx.quadraticCurveTo(bx, by, bx+rx, by);
+    tCtx.closePath();
+    tCtx.fill();
+    tCtx.fillStyle = textColor;
+    tCtx.textAlign = 'center'; tCtx.textBaseline = 'middle';
+    tCtx.fillText(text, 0, 0.5);
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// RENDER
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function render(targetCtx, w, h) {
+    targetCtx = targetCtx || ctx;
+    w = w || width; h = h || height;
+
+    // Neither mode ready â€” blank
+    if (mapMode === 'raster' && !rasterReady) return;
+    if (mapMode === 'vector' && !vectorReady) return;
+
+    targetCtx.clearRect(0, 0, w, h);
+
+    const rotDeg = +document.getElementById('view-rotation').value;
+    const rotRad = rotDeg * Math.PI / 180;
+    const [cx, cy] = projection.translate();
+    const rGlobe   = projection.scale();
+
+    // â”€â”€ Apply view rotation as a pure canvas transform â”€â”€
+    targetCtx.save();
+    targetCtx.translate(cx, cy);
+    targetCtx.rotate(rotRad);
+    targetCtx.translate(-cx, -cy);
+
+    if (mapMode === 'raster') {
+        renderRaster(targetCtx, w, h, cx, cy, rGlobe, rotDeg);
+    } else {
+        renderVector(targetCtx, w, h, cx, cy, rGlobe);
+    }
+
+    renderOverlay(targetCtx, w, h, cx, cy, rGlobe, rotDeg);
+
+    targetCtx.restore();
+}
+
+// â”€â”€ Raster background â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function inverseRotatedPoint(point, cx, cy, rotDeg) {
+    const a = -rotDeg * Math.PI / 180;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const dx = point[0] - cx;
+    const dy = point[1] - cy;
+    return [
+        cx + dx * cos - dy * sin,
+        cy + dx * sin + dy * cos
+    ];
+}
+
+function rotatedViewportBounds(w, h, cx, cy, rotDeg) {
+    const corners = [
+        inverseRotatedPoint([0, 0], cx, cy, rotDeg),
+        inverseRotatedPoint([w, 0], cx, cy, rotDeg),
+        inverseRotatedPoint([w, h], cx, cy, rotDeg),
+        inverseRotatedPoint([0, h], cx, cy, rotDeg)
+    ];
+    const xs = corners.map(p => p[0]);
+    const ys = corners.map(p => p[1]);
+    return {
+        x1: Math.floor(Math.min(...xs)) - 2,
+        y1: Math.floor(Math.min(...ys)) - 2,
+        x2: Math.ceil(Math.max(...xs)) + 2,
+        y2: Math.ceil(Math.max(...ys)) + 2
+    };
+}
+
+function renderRaster(tCtx, w, h, cx, cy, rGlobe, rotDeg) {
+    // Ocean
+    const og = tCtx.createRadialGradient(cx, cy, 0, cx, cy, rGlobe);
+    og.addColorStop(0, '#4a90d9'); og.addColorStop(0.6, '#2f6fa8'); og.addColorStop(1, '#1a3d5c');
+    tCtx.beginPath(); tCtx.arc(cx, cy, rGlobe, 0, 2*Math.PI);
+    tCtx.fillStyle = og; tCtx.fill();
+
+    // Cover the inverse-rotated viewport, not a fixed globe-centered square.
+    // This prevents raster clipping into rectangles or wedges when zoomed/panned.
+    const step = projection.scale() > initialScale * 1.2 ? 1 : 2;
+    const bounds = rotatedViewportBounds(w, h, cx, cy, rotDeg);
+    const bx = bounds.x1;
+    const by = bounds.y1;
+    const bw = bounds.x2 - bounds.x1;
+    const bh = bounds.y2 - bounds.y1;
+    if (bw > 0 && bh > 0) {
+        // Build the raster into an offscreen canvas, then draw it back with
+        // drawImage so it follows the same canvas transform as the overlay.
+        if (!rasterFrameCanvas) {
+            rasterFrameCanvas = document.createElement('canvas');
+            rasterFrameCtx = rasterFrameCanvas.getContext('2d');
+        }
+        if (rasterFrameCanvas.width !== bw || rasterFrameCanvas.height !== bh) {
+            rasterFrameCanvas.width = bw;
+            rasterFrameCanvas.height = bh;
+        }
+        const imgData = rasterFrameCtx.createImageData(bw, bh);
+        const pixels  = imgData.data;
+        const r2      = rGlobe * rGlobe;
+        for (let py = 0; py < bh; py += step) {
+            for (let px = 0; px < bw; px += step) {
+                const sx = bx+px, sy = by+py;
+                const dx = sx-cx, dy = sy-cy;
+                if (dx*dx + dy*dy > r2) continue;
+                const ll = projection.invert([sx, sy]);
+                if (!ll) continue;
+                const [rr,gg,bb] = sampleRaster(ll[0], ll[1]);
+                for (let oy=0; oy<step && py+oy<bh; oy++) {
+                    for (let ox=0; ox<step && px+ox<bw; ox++) {
+                        const i = ((py+oy)*bw + (px+ox))*4;
+                        pixels[i]=rr; pixels[i+1]=gg; pixels[i+2]=bb; pixels[i+3]=255;
+                    }
+                }
+            }
+        }
+        rasterFrameCtx.putImageData(imgData, 0, 0);
+        tCtx.drawImage(rasterFrameCanvas, bx, by);
+    }
+
+    // Atmosphere
+    const ag = tCtx.createRadialGradient(cx,cy,rGlobe*0.75,cx,cy,rGlobe*1.02);
+    ag.addColorStop(0,'rgba(0,0,0,0)'); ag.addColorStop(0.7,'rgba(0,0,0,0.18)'); ag.addColorStop(1,'rgba(0,20,60,0.55)');
+    tCtx.beginPath(); tCtx.arc(cx,cy,rGlobe,0,2*Math.PI); tCtx.fillStyle=ag; tCtx.fill();
+
+    const sg = tCtx.createRadialGradient(cx-rGlobe*0.3,cy-rGlobe*0.3,0,cx,cy,rGlobe);
+    sg.addColorStop(0,'rgba(255,255,255,0.08)'); sg.addColorStop(0.4,'rgba(255,255,255,0)');
+    tCtx.beginPath(); tCtx.arc(cx,cy,rGlobe,0,2*Math.PI); tCtx.fillStyle=sg; tCtx.fill();
+
+    const gg2 = tCtx.createRadialGradient(cx,cy,rGlobe*0.98,cx,cy,rGlobe*1.08);
+    gg2.addColorStop(0,'rgba(100,160,255,0.25)'); gg2.addColorStop(1,'rgba(100,160,255,0)');
+    tCtx.beginPath(); tCtx.arc(cx,cy,rGlobe*1.08,0,2*Math.PI); tCtx.fillStyle=gg2; tCtx.fill();
+}
+
+// â”€â”€ Vector background â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function renderVector(tCtx, w, h, cx, cy, rGlobe) {
+    const gPath = d3.geoPath(projection, tCtx);
+
+    tCtx.beginPath(); gPath({type:'Sphere'});
+    tCtx.fillStyle = currentTheme.ocean; tCtx.fill();
+
+    if (land) {
+        tCtx.beginPath(); gPath(land);
+        tCtx.fillStyle = currentTheme.land;
+        tCtx.fill();
+        if (currentTheme.isOutline) {
+            tCtx.beginPath(); gPath(land);
+            tCtx.strokeStyle = currentTheme.darkest;
+            tCtx.lineWidth = 0.9;
+            tCtx.stroke();
+        }
+    }
+    if (countries) { tCtx.beginPath(); gPath(countries); tCtx.strokeStyle = currentTheme.borders; tCtx.lineWidth = 0.4; tCtx.stroke(); }
+    if (lakes)     { tCtx.beginPath(); gPath(lakes);     tCtx.fillStyle = currentTheme.ocean;   tCtx.fill(); }
+
+    // Vignette
+    const vg = tCtx.createRadialGradient(cx,cy,rGlobe*0.8,cx,cy,rGlobe);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.35)');
+    tCtx.beginPath(); gPath({type:'Sphere'}); tCtx.fillStyle=vg; tCtx.fill();
+}
+
+// â”€â”€ Shared overlay: routes + city labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function renderOverlay(tCtx, w, h, cx, cy, rGlobe, rotDeg) {
+    const gPath = d3.geoPath(projection, tCtx);
+    const resolvedDests = destRows.filter(dr => dr.resolved);
+
+    // Pick colors based on mode
+    const routeColor  = mapMode === 'raster' ? RASTER_ROUTE_COLOR  : currentTheme.routeColor;
+    const pillBg      = mapMode === 'raster' ? RASTER_PILL_BG      : currentTheme.routePillBg;
+    const pillText    = mapMode === 'raster' ? RASTER_PILL_TEXT    : currentTheme.routePillText;
+    const cityPillBg  = mapMode === 'raster' ? RASTER_CITY_PILL_BG : currentTheme.cityPillBg;
+    const cityText    = mapMode === 'raster' ? RASTER_CITY_TEXT    : currentTheme.cityPillText;
+    const dotColor    = mapMode === 'raster' ? RASTER_DOT          : currentTheme.dotColor;
+
+    // â”€â”€ Routes â”€â”€
+    resolvedDests.forEach(dr => {
+        if (!centerCity) return;
+        const c1 = centerCity.coords, c2 = dr.resolved.coords;
+        const km = Math.round(d3.geoDistance(c1, c2) * 6371);
+
+        tCtx.beginPath();
+        gPath({ type: 'LineString', coordinates: [c1, c2] });
+        tCtx.strokeStyle = pillBg; tCtx.lineWidth = 3.5;
+        tCtx.setLineDash([6,4]); tCtx.stroke();
+
+        tCtx.beginPath();
+        gPath({ type: 'LineString', coordinates: [c1, c2] });
+        tCtx.strokeStyle = routeColor; tCtx.lineWidth = 1.5;
+        tCtx.setLineDash([6,4]); tCtx.stroke(); tCtx.setLineDash([]);
+
+        const mid     = geodeticMidpoint(c1, c2);
+        const midProj = projection(mid);
+        if (midProj && isVisible(mid)) {
+            tCtx.save();
+            tCtx.translate(midProj[0], midProj[1]);
+            tCtx.rotate(-rotDeg * Math.PI / 180); // keep pill upright
+            drawPill(tCtx, km.toLocaleString() + ' km', pillBg, pillText, 10);
+            tCtx.restore();
+        }
+    });
+
+    // â”€â”€ City dots + pill labels â”€â”€
+    const allCities = centerCity
+        ? [{ ...centerCity, isCenter: true }, ...resolvedDests.map(dr => ({ ...dr.resolved, isCenter: false }))]
+        : [];
+    const seen = new Set();
+    const unique = allCities.filter(c => { if (seen.has(c.name)) return false; seen.add(c.name); return true; });
+
+    unique.forEach(pt => {
+        const p = projection(pt.coords);
+        if (!p || !isVisible(pt.coords)) return;
+
+        const r = pt.isCenter ? 4.5 : 3;
+        tCtx.beginPath(); tCtx.arc(p[0], p[1], r, 0, 2*Math.PI);
+        tCtx.fillStyle = dotColor; tCtx.fill();
+        if (pt.isCenter) {
+            tCtx.beginPath(); tCtx.arc(p[0], p[1], r+2, 0, 2*Math.PI);
+            tCtx.strokeStyle = dotColor; tCtx.lineWidth = 1; tCtx.stroke();
+        }
+
+        const fontSize    = 11;
+        tCtx.font         = classicFont.replace('1px', fontSize + 'px');
+        const bh          = fontSize + 4*2;
+        const pillOffsetY = -(r + 6 + bh/2);
+
+        tCtx.save();
+        tCtx.translate(p[0], p[1]);
+        tCtx.rotate(-rotDeg * Math.PI / 180); // keep label upright
+
+        // Connector
+        tCtx.beginPath(); tCtx.moveTo(0, -r); tCtx.lineTo(0, pillOffsetY + bh/2);
+        tCtx.strokeStyle = dotColor; tCtx.lineWidth = 1; tCtx.stroke();
+
+        // Pill
+        tCtx.translate(0, pillOffsetY);
+        drawPill(tCtx, pt.name, cityPillBg, cityText, fontSize);
+        tCtx.restore();
+    });
+}
+
+function destinationPoint(start, distanceKm, bearingDeg) {
+    const radiusKm = 6371;
+    const delta = distanceKm / radiusKm;
+    const theta = bearingDeg * Math.PI / 180;
+    const lon1 = start[0] * Math.PI / 180;
+    const lat1 = start[1] * Math.PI / 180;
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(delta) + Math.cos(lat1) * Math.sin(delta) * Math.cos(theta));
+    const lon2 = lon1 + Math.atan2(
+        Math.sin(theta) * Math.sin(delta) * Math.cos(lat1),
+        Math.cos(delta) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    return [((lon2 * 180 / Math.PI + 540) % 360) - 180, lat2 * 180 / Math.PI];
+}
+
+function rotatedScreenPoint(point, cx, cy, rotDeg) {
+    const a = rotDeg * Math.PI / 180;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const dx = point[0] - cx;
+    const dy = point[1] - cy;
+    return [
+        cx + dx * cos - dy * sin,
+        cy + dx * sin + dy * cos
+    ];
+}
+
+function normalizeTextAngle(angle) {
+    while (angle <= -Math.PI) angle += Math.PI * 2;
+    while (angle > Math.PI) angle -= Math.PI * 2;
+    if (angle > Math.PI / 2) angle -= Math.PI;
+    if (angle < -Math.PI / 2) angle += Math.PI;
+    return angle;
+}
+
+function labelBox(center, w, h, pad = 2) {
+    return {
+        x1: center[0] - w / 2 - pad,
+        y1: center[1] - h / 2 - pad,
+        x2: center[0] + w / 2 + pad,
+        y2: center[1] + h / 2 + pad
+    };
+}
+
+function boxesOverlap(a, b) {
+    return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
+}
+
+function distanceToBox(point, box) {
+    const dx = Math.max(box.x1 - point[0], 0, point[0] - box.x2);
+    const dy = Math.max(box.y1 - point[1], 0, point[1] - box.y2);
+    return Math.hypot(dx, dy);
+}
+
+function scoreLabelBox(box, avoidPoints, occupiedBoxes, w, h) {
+    let score = 0;
+    if (box.x1 < 8 || box.y1 < 8 || box.x2 > w - 8 || box.y2 > h - 8) score += 10000;
+    occupiedBoxes.forEach(other => {
+        if (boxesOverlap(box, other)) score += 5000;
+    });
+    avoidPoints.forEach(point => {
+        const d = distanceToBox(point, box);
+        if (d < 14) score += 1400;
+        else if (d < 34) score += (34 - d) * 18;
+    });
+    return score;
+}
+
+function measureTextBox(tCtx, text, fontSize, pad = 4) {
+    tCtx.font = classicFont.replace('1px', fontSize + 'px');
+    return {
+        width: tCtx.measureText(text).width + pad * 2,
+        height: fontSize + pad * 2
+    };
+}
+
+function routeSamples(c1, c2, cx, cy, rotDeg) {
+    const interpolate = d3.geoInterpolate(c1, c2);
+    const points = [];
+    for (let i = 1; i < 10; i++) {
+        const coords = interpolate(i / 10);
+        const p = projection(coords);
+        if (p && isVisible(coords)) points.push(rotatedScreenPoint(p, cx, cy, rotDeg));
+    }
+    return points;
+}
+
+function projectedRouteLabel(c1, c2, cx, cy, rotDeg) {
+    const interpolate = d3.geoInterpolate(c1, c2);
+    const candidates = [0.5, 0.43, 0.57, 0.36, 0.64];
+
+    for (const t of candidates) {
+        const coords = interpolate(t);
+        const beforeCoords = interpolate(Math.max(0.02, t - 0.025));
+        const afterCoords = interpolate(Math.min(0.98, t + 0.025));
+        const point = projection(coords);
+        const before = projection(beforeCoords);
+        const after = projection(afterCoords);
+        if (!point || !before || !after || !isVisible(coords) || !isVisible(beforeCoords) || !isVisible(afterCoords)) continue;
+
+        const beforeScreen = rotatedScreenPoint(before, cx, cy, rotDeg);
+        const afterScreen = rotatedScreenPoint(after, cx, cy, rotDeg);
+        const screenAngle = normalizeTextAngle(Math.atan2(afterScreen[1] - beforeScreen[1], afterScreen[0] - beforeScreen[0]));
+        const localAngle = screenAngle - rotDeg * Math.PI / 180;
+
+        return {
+            point,
+            screenPoint: rotatedScreenPoint(point, cx, cy, rotDeg),
+            localAngle
+        };
+    }
+    return null;
+}
+
+function drawLineDistanceLabel(tCtx, text, c1, c2, routeColor, rotDeg, cx, cy, occupiedBoxes, avoidPoints, w, h, fontSize) {
+    const label = projectedRouteLabel(c1, c2, cx, cy, rotDeg);
+    if (!label) return;
+
+    const dims = measureTextBox(tCtx, text, fontSize, 2);
+    const box = labelBox(label.screenPoint, dims.width, dims.height + 8, 3);
+    if (scoreLabelBox(box, avoidPoints, occupiedBoxes, w, h) >= 5000) return;
+
+    tCtx.save();
+    tCtx.translate(label.point[0], label.point[1]);
+    tCtx.rotate(label.localAngle);
+    tCtx.font = classicFont.replace('1px', fontSize + 'px');
+    tCtx.textAlign = 'center';
+    tCtx.textBaseline = 'middle';
+    tCtx.fillStyle = routeColor;
+    tCtx.fillText(text, 0, -7);
+    tCtx.restore();
+    occupiedBoxes.push(box);
+}
+
+function chooseRangeLabel(centerCoords, km, text, tCtx, fontSize, cx, cy, rotDeg, avoidPoints, occupiedBoxes, w, h) {
+    const dims = measureTextBox(tCtx, text, fontSize, 4);
+    let best = null;
+    const bearings = [315, 45, 270, 90, 225, 135, 0, 180, 300, 330, 30, 60, 240, 210, 120, 150];
+
+    bearings.forEach((bearing, idx) => {
+        const coords = destinationPoint(centerCoords, km, bearing);
+        const point = projection(coords);
+        if (!point || !isVisible(coords)) return;
+
+        const screenPoint = rotatedScreenPoint(point, cx, cy, rotDeg);
+        const box = labelBox(screenPoint, dims.width, dims.height, 3);
+        const centerPenalty = Math.max(0, 14 - Math.hypot(screenPoint[0] - cx, screenPoint[1] - cy)) * 20;
+        const score = scoreLabelBox(box, avoidPoints, occupiedBoxes, w, h) + centerPenalty + idx * 0.1;
+        if (!best || score < best.score) best = { point, box, score };
+    });
+
+    return best;
+}
+
+function renderOverlay(tCtx, w, h, cx, cy, rGlobe, rotDeg) {
+    const gPath = d3.geoPath(projection, tCtx);
+    const labelSizes = getLabelSizes();
+
+    const routeColor  = mapMode === 'raster' ? RASTER_ROUTE_COLOR  : currentTheme.routeColor;
+    const pillBg      = mapMode === 'raster' ? RASTER_PILL_BG      : currentTheme.routePillBg;
+    const pillText    = mapMode === 'raster' ? RASTER_PILL_TEXT    : currentTheme.routePillText;
+    const cityText    = mapMode === 'raster' ? RASTER_CITY_TEXT    : currentTheme.cityPillText;
+    const dotColor    = mapMode === 'raster' ? RASTER_DOT          : currentTheme.dotColor;
+    const ringColor   = mapMode === 'raster' ? 'rgba(255,255,255,0.95)' : routeColor;
+    const ringHalo    = mapMode === 'raster' ? 'rgba(5,12,24,0.72)' : pillBg;
+    const ringHaloWidth = mapMode === 'raster' ? 2.8 : 1.8;
+    const ringWidth = mapMode === 'raster' ? 1.25 : 0.8;
+    const routeHaloWidth = mapMode === 'raster' ? 2.5 : 1.6;
+    const routeWidth = mapMode === 'raster' ? 1.15 : 0.75;
+    const occupiedBoxes = [];
+    const avoidPoints = [];
+
+    const allCities = centerCity ? [{ ...centerCity, isCenter: true }, ...plottedCities.map(city => ({ ...city, isCenter: false }))] : [];
+    const seen = new Set();
+    const unique = allCities.filter(c => {
+        const key = c.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
+    unique.forEach(pt => {
+        const p = projection(pt.coords);
+        if (!p || !isVisible(pt.coords)) return;
+
+        const screenPoint = rotatedScreenPoint(p, cx, cy, rotDeg);
+        avoidPoints.push(screenPoint);
+
+        const fontSize = labelSizes.city;
+        const r = pt.isCenter ? 4.5 : 3;
+        const labelOffsetY = -(r + 12);
+        const dims = measureTextBox(tCtx, pt.name, fontSize, 1);
+        occupiedBoxes.push(labelBox([screenPoint[0], screenPoint[1] + labelOffsetY], dims.width, dims.height + 4, 4));
+    });
+
+    plottedCities.forEach(city => {
+        if (!centerCity) return;
+        avoidPoints.push(...routeSamples(centerCity.coords, city.coords, cx, cy, rotDeg));
+    });
+
+    if (centerCity) {
+        rangeRings.forEach(km => {
+            const ring = d3.geoCircle()
+                .center(centerCity.coords)
+                .radius(km / 6371 * 180 / Math.PI)
+                .precision(2)();
+
+            tCtx.beginPath();
+            gPath(ring);
+            tCtx.strokeStyle = ringHalo;
+            tCtx.lineWidth = ringHaloWidth;
+            tCtx.setLineDash([]);
+            tCtx.stroke();
+
+            tCtx.beginPath();
+            gPath(ring);
+            tCtx.strokeStyle = ringColor;
+            tCtx.lineWidth = ringWidth;
+            tCtx.setLineDash([]);
+            tCtx.stroke();
+            tCtx.setLineDash([]);
+
+            const text = km.toLocaleString() + ' km';
+            const label = chooseRangeLabel(centerCity.coords, km, text, tCtx, labelSizes.range, cx, cy, rotDeg, avoidPoints, occupiedBoxes, w, h);
+            if (label) {
+                tCtx.save();
+                tCtx.translate(label.point[0], label.point[1]);
+                tCtx.rotate(-rotDeg * Math.PI / 180);
+                drawPill(tCtx, text, pillBg, pillText, labelSizes.range);
+                tCtx.restore();
+                occupiedBoxes.push(label.box);
+            }
+        });
+    }
+
+    plottedCities.forEach(city => {
+        if (!centerCity) return;
+        const c1 = centerCity.coords, c2 = city.coords;
+        const km = Math.round(d3.geoDistance(c1, c2) * 6371);
+
+        tCtx.beginPath();
+        gPath({ type: 'LineString', coordinates: [c1, c2] });
+        tCtx.strokeStyle = ringHalo;
+        tCtx.lineWidth = routeHaloWidth;
+        tCtx.setLineDash([6, 4]);
+        tCtx.stroke();
+
+        tCtx.beginPath();
+        gPath({ type: 'LineString', coordinates: [c1, c2] });
+        tCtx.strokeStyle = routeColor;
+        tCtx.lineWidth = routeWidth;
+        tCtx.setLineDash([6, 4]);
+        tCtx.stroke();
+        tCtx.setLineDash([]);
+
+        drawLineDistanceLabel(tCtx, km.toLocaleString() + ' km', c1, c2, routeColor, rotDeg, cx, cy, occupiedBoxes, avoidPoints, w, h, labelSizes.route);
+    });
+
+    unique.forEach(pt => {
+        const p = projection(pt.coords);
+        if (!p || !isVisible(pt.coords)) return;
+
+        const r = pt.isCenter ? 4.5 : 3;
+        tCtx.beginPath();
+        tCtx.arc(p[0], p[1], r, 0, 2 * Math.PI);
+        tCtx.fillStyle = dotColor;
+        tCtx.fill();
+
+        if (pt.isCenter) {
+            tCtx.beginPath();
+            tCtx.arc(p[0], p[1], r + 2, 0, 2 * Math.PI);
+            tCtx.strokeStyle = dotColor;
+            tCtx.lineWidth = 1;
+            tCtx.stroke();
+        }
+
+        const fontSize = labelSizes.city;
+        tCtx.font = classicFont.replace('1px', fontSize + 'px');
+        const labelOffsetY = -(r + 12);
+
+        tCtx.save();
+        tCtx.translate(p[0], p[1]);
+        tCtx.rotate(-rotDeg * Math.PI / 180);
+        tCtx.beginPath();
+        tCtx.moveTo(0, -r);
+        tCtx.lineTo(0, labelOffsetY + 4);
+        tCtx.strokeStyle = dotColor;
+        tCtx.lineWidth = 1;
+        tCtx.stroke();
+
+        tCtx.textAlign = 'center';
+        tCtx.textBaseline = 'bottom';
+        tCtx.lineJoin = 'round';
+        tCtx.strokeStyle = mapMode === 'raster' ? 'rgba(5,12,24,0.78)' : 'rgba(255,255,255,0.62)';
+        tCtx.lineWidth = mapMode === 'raster' ? 3.5 : 2;
+        tCtx.strokeText(pt.name, 0, labelOffsetY);
+        tCtx.fillStyle = cityText;
+        tCtx.fillText(pt.name, 0, labelOffsetY);
+        tCtx.restore();
+    });
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODAL
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function openModal() {
+    const inp = document.getElementById('modal-city-input');
+    inp.value = centerCity ? centerCity.name : '';
+    document.getElementById('centerModal').classList.add('open');
+    setTimeout(() => inp.focus(), 60);
+}
+function closeModal() { document.getElementById('centerModal').classList.remove('open'); }
+
+document.getElementById('center-display').addEventListener('keydown', e => {
+    if (e.key === 'Enter') updateCenterFromInput();
+});
+
+document.getElementById('modal-city-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter')  confirmCenter();
+    if (e.key === 'Escape') closeModal();
+});
+document.getElementById('centerModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+});
+
+async function confirmCenter() {
+    const val = document.getElementById('modal-city-input').value.trim();
+    await setCenterCityFromName(val, true);
+}
+
+async function updateCenterFromInput() {
+    const val = document.getElementById('center-display').value.trim();
+    await setCenterCityFromName(val, false);
+}
+
+async function syncCenterFromInput() {
+    const val = document.getElementById('center-display').value.trim();
+    if (!val) return false;
+    if (centerCity && normalizePlaceName(val) === normalizePlaceName(centerCity.name)) return true;
+
+    setStatus('Locating ' + val + '...');
+    const res = await geocode(val);
+    setStatus('');
+    if (!res) {
+        setStatus('Center city not found.');
+        return false;
+    }
+
+    centerCity = res;
+    document.getElementById('center-display').value = res.name;
+    return true;
+}
+
+async function setCenterCityFromName(val, closeCenterModal) {
+    if (!val) return;
+    setStatus('Locating ' + val + '...');
+    const res = await geocode(val);
+    setStatus('');
+    if (res) {
+        centerCity = res;
+        document.getElementById('center-display').value = res.name;
+        if (closeCenterModal) closeModal();
+        handleSearch();
+    } else {
+        setStatus('City not found.');
+    }
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DESTINATION ROWS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function addDestRow() {
+    if (destRows.length >= 5) return;
+    const row   = document.createElement('div'); row.className = 'dest-row';
+    const num   = document.createElement('span'); num.className = 'dest-num'; num.textContent = String(destRows.length + 1);
+    const inp   = document.createElement('input'); inp.type = 'text'; inp.placeholder = 'City name...'; inp.autocomplete = 'off';
+    inp.addEventListener('keypress', e => { if (e.key === 'Enter') handleSearch(); });
+    const pill  = document.createElement('span'); pill.className = 'dist-pill';
+    const btnRm = document.createElement('button'); btnRm.className = 'btn-remove'; btnRm.innerHTML = 'Ã—'; btnRm.title = 'Remove';
+    btnRm.addEventListener('click', () => removeDestRow(row));
+    row.append(num, inp, pill, btnRm);
+    document.getElementById('dest-list').appendChild(row);
+    destRows.push({ inputEl: inp, distPillEl: pill, rowEl: row, resolved: null });
+    updateAddButton(); inp.focus();
+}
+
+function removeDestRow(rowEl) {
+    const i = destRows.findIndex(dr => dr.rowEl === rowEl);
+    if (i === -1) return;
+    destRows.splice(i, 1); rowEl.remove();
+    destRows.forEach((dr, j) => dr.rowEl.querySelector('.dest-num').textContent = String(j+1));
+    updateAddButton(); render();
+}
+
+function updateAddButton() {
+    const btn = document.getElementById('btn-add');
+    btn.disabled    = destRows.length >= 5;
+    btn.textContent = destRows.length >= 5 ? '- max 5 destinations -' : '+ Add Destination';
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// GEOCODE + SEARCH
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function normalizePlaceName(value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+
+function addCityIndexEntry(index, key, entry) {
+    if (!key) return;
+    const choices = index.get(key) || [];
+    const exists = choices.some(choice =>
+        choice.name === entry.name &&
+        choice.country === entry.country &&
+        choice.coords[0] === entry.coords[0] &&
+        choice.coords[1] === entry.coords[1]
+    );
+    if (!exists) choices.push(entry);
+    choices.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
+    index.set(key, choices);
+}
+
+async function loadLocalGazetteer() {
+    if (localGazetteerPromise) return localGazetteerPromise;
+    localGazetteerPromise = fetch('NE_populated_places_compact.json')
+        .then(res => {
+            if (!res.ok) throw new Error('Local gazetteer unavailable');
+            return res.json();
+        })
+        .then(data => {
+            localCityIndex = new Map();
+            data.places.forEach(place => {
+                const [name, lon, lat, rank, country] = place;
+                const entry = { name, coords: [lon, lat], rank, country };
+                addCityIndexEntry(localCityIndex, normalizePlaceName(name), entry);
+                name.split(/[-/]/).forEach(part => addCityIndexEntry(localCityIndex, normalizePlaceName(part), entry));
+                name.split(/\s+(?:and|und|y|e|et)\s+/i).forEach(part => addCityIndexEntry(localCityIndex, normalizePlaceName(part), entry));
+            });
+            return localCityIndex;
+        })
+        .catch(() => {
+            localCityIndex = null;
+            return null;
+        });
+    return localGazetteerPromise;
+}
+
+function formatPlaceChoice(entry) {
+    const lon = entry.coords[0].toFixed(3);
+    const lat = entry.coords[1].toFixed(3);
+    return `${entry.name}, ${entry.country} (${lat}, ${lon})`;
+}
+
+function choosePlaceCandidate(query, candidates) {
+    const unique = candidates.slice(0, 8);
+    if (unique.length <= 1) return Promise.resolve(unique[0] || null);
+
+    const bestRank = unique[0].rank;
+    const bestMatches = unique.filter(candidate => candidate.rank === bestRank);
+    if (bestRank === 0 && bestMatches.length === 1) {
+        return Promise.resolve(unique[0]);
+    }
+
+    return new Promise(resolve => {
+        pendingPlaceChoice = resolve;
+        document.getElementById('place-choice-prompt').textContent = `"${query}" matched multiple places. Choose one:`;
+        const list = document.getElementById('place-choice-list');
+        list.innerHTML = '';
+
+        unique.forEach(candidate => {
+            const btn = document.createElement('button');
+            const name = document.createElement('span');
+            name.className = 'choice-name';
+            name.textContent = candidate.name;
+            const meta = document.createElement('span');
+            meta.className = 'choice-meta';
+            meta.textContent = `${candidate.country} - ${candidate.coords[1].toFixed(3)}, ${candidate.coords[0].toFixed(3)}`;
+            btn.append(name, meta);
+            btn.addEventListener('click', () => resolvePlaceChoice(candidate));
+            list.appendChild(btn);
+        });
+
+        document.getElementById('placeChoiceModal').classList.add('open');
+    });
+}
+
+function resolvePlaceChoice(candidate) {
+    document.getElementById('placeChoiceModal').classList.remove('open');
+    const resolve = pendingPlaceChoice;
+    pendingPlaceChoice = null;
+    if (resolve) resolve(candidate);
+}
+
+function cancelPlaceChoice() {
+    resolvePlaceChoice(null);
+}
+
+async function geocodeLocal(q) {
+    const index = await loadLocalGazetteer();
+    if (!index) return null;
+
+    const raw = q.trim();
+    const exact = index.get(normalizePlaceName(raw));
+    if (exact && exact.length) {
+        const chosen = await choosePlaceCandidate(raw, exact);
+        return chosen ? { name: chosen.name, coords: chosen.coords } : null;
+    }
+
+    const cityPart = raw.split(',')[0].trim();
+    if (cityPart && cityPart !== raw) {
+        const partial = index.get(normalizePlaceName(cityPart));
+        if (partial && partial.length) {
+            const chosen = await choosePlaceCandidate(cityPart, partial);
+            return chosen ? { name: chosen.name, coords: chosen.coords } : null;
+        }
+    }
+
+    const hyphenPart = raw.split('-')[0].trim();
+    if (hyphenPart && hyphenPart !== raw) {
+        const partial = index.get(normalizePlaceName(hyphenPart));
+        if (partial && partial.length) {
+            const chosen = await choosePlaceCandidate(hyphenPart, partial);
+            return chosen ? { name: chosen.name, coords: chosen.coords } : null;
+        }
+    }
+
+    return null;
+}
+
+async function geocode(q) {
+    const key = q.trim().toLowerCase();
+    if (geocodeCache.has(key)) return geocodeCache.get(key);
+
+    const localResult = await geocodeLocal(q);
+    if (localResult) {
+        geocodeCache.set(key, localResult);
+        return localResult;
+    }
+
+    try {
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+            { headers: { 'Accept-Language': navigator.language || 'en' } }
+        );
+        if (!res.ok) return null;
+        const d = await res.json();
+        const result = d.length > 0 ? { name: q.trim(), coords: [parseFloat(d[0].lon), parseFloat(d[0].lat)] } : null;
+        if (result) geocodeCache.set(key, result);
+        return result;
+    } catch {
+        return null;
+    }
+}
+
+async function handleSearch() {
+    const filled = destRows.filter(dr => dr.inputEl.value.trim() !== '');
+    if (!filled.length) { setStatus('Add at least one destination.'); return; }
+    if (!centerCity)    { setStatus('Set a center city first.'); return; }
+    setStatus('Searching...');
+    const results = await Promise.all(filled.map(dr => geocode(dr.inputEl.value.trim()).then(res => ({ dr, res }))));
+    setStatus('');
+    let anyFailed = false;
+    results.forEach(({ dr, res }) => {
+        if (res) {
+            dr.resolved = res; dr.rowEl.classList.add('resolved');
+            const km = Math.round(d3.geoDistance(centerCity.coords, res.coords) * 6371).toLocaleString();
+            dr.distPillEl.textContent = km + ' km'; dr.distPillEl.style.display = 'inline';
+        } else {
+            dr.resolved = null; anyFailed = true;
+            dr.distPillEl.style.display = 'none'; dr.rowEl.classList.remove('resolved');
+        }
+    });
+    if (anyFailed) setStatus('Some cities could not be found.');
+    autoCenterView();
+    closePanelOnMobile();
+}
+
+function setStatus(msg) { document.getElementById('status').innerText = msg; }
+
+function autoCenterView() {
+    const pts = [centerCity.coords, ...destRows.filter(dr => dr.resolved).map(dr => dr.resolved.coords)];
+    if (pts.length < 2) return;
+    const avgLon = pts.reduce((s,p) => s+p[0], 0) / pts.length;
+    const avgLat = pts.reduce((s,p) => s+p[1], 0) / pts.length;
+    d3.transition().duration(900).tween('rotate', () => {
+        const r = d3.interpolate(projection.rotate(), [-avgLon, -avgLat]);
+        return t => { projection.rotate(r(t)); render(); };
+    });
+}
+
+function parseRangeRings() {
+    const raw = document.getElementById('range-rings-input').value;
+    const parsed = raw.split(',')
+        .map(v => Number(v.trim().replace(/,/g, '')))
+        .filter(v => Number.isFinite(v) && v > 0 && v <= Math.PI * 6371)
+        .sort((a, b) => a - b);
+    return [...new Set(parsed)];
+}
+
+function parseCityList() {
+    const raw = document.getElementById('city-list-input').value;
+    const seen = new Set();
+    return raw.split(',')
+        .map(v => v.trim())
+        .filter(Boolean)
+        .filter(name => {
+            const key = name.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+}
+
+async function handleSearch() {
+    if (!centerCity) {
+        setStatus('Set a center city first.');
+        return;
+    }
+    const centerReady = await syncCenterFromInput();
+    if (!centerReady) return;
+
+    rangeRings = parseRangeRings();
+
+    const cityNames = parseCityList();
+    if (!cityNames.length) {
+        plottedCities = [];
+        setStatus('');
+        autoCenterView();
+        return;
+    }
+
+    setStatus('Searching...');
+    const results = [];
+    for (const name of cityNames) {
+        const res = await geocode(name);
+        results.push({ name, res });
+    }
+    plottedCities = results.filter(({ res }) => res).map(({ res }) => res);
+    const failed = results.filter(({ res }) => !res).map(({ name }) => name);
+    setStatus(failed.length ? 'Could not find: ' + failed.join(', ') : '');
+    autoCenterView();
+    closePanelOnMobile();
+}
+
+function autoCenterView() {
+    const pts = [centerCity.coords, ...plottedCities.map(city => city.coords)];
+    if (pts.length < 2) {
+        projection.rotate([-centerCity.coords[0], -centerCity.coords[1]]);
+        requestRender();
+        return;
+    }
+    const avgLon = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+    const avgLat = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    d3.transition().duration(900).tween('rotate', () => {
+        const r = d3.interpolate(projection.rotate(), [-avgLon, -avgLat]);
+        return t => { projection.rotate(r(t)); render(); };
+    });
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// EXPORT
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function exportPNG(type) {
+    const name = centerCity ? centerCity.name.replace(/\s+/g,'_') : 'globe';
+    if (type === 'window') {
+        const tmp = document.createElement('canvas');
+        tmp.width = canvas.width;
+        tmp.height = canvas.height;
+        const tmpCtx = tmp.getContext('2d');
+        tmpCtx.drawImage(canvas, 0, 0);
+        drawExportWatermark(tmpCtx, tmp.width, tmp.height);
+        const link = document.createElement('a');
+        link.download = `${name}_window.png`;
+        link.href = tmp.toDataURL('image/png');
+        link.click();
+    } else {
+        const sc = projection.scale(), size = sc * 2 + 120;
+        const tmp = document.createElement('canvas');
+        tmp.width = size; tmp.height = size;
+        const oldT = projection.translate();
+        projection.translate([size/2, size/2]);
+        const tmpCtx = tmp.getContext('2d');
+        render(tmpCtx, size, size);
+        drawExportWatermark(tmpCtx, size, size);
+        const link = document.createElement('a');
+        link.download = `${name}_globe.png`;
+        link.href = tmp.toDataURL('image/png');
+        link.click();
+        projection.translate(oldT); render();
+    }
+}
+
+function drawExportWatermark(tCtx, w, h) {
+    const text = '@RhodesMaps | www.thinkinginspace.net';
+    const fontSize = Math.max(10, Math.round(Math.min(w, h) * 0.014));
+    tCtx.save();
+    tCtx.font = `600 ${fontSize}px "Aptos","Avenir Next","Inter","Segoe UI",system-ui,sans-serif`;
+    tCtx.textAlign = 'right';
+    tCtx.textBaseline = 'bottom';
+    tCtx.lineJoin = 'round';
+    const margin = Math.max(10, Math.round(fontSize * 1.1));
+    if (mapMode === 'raster') {
+        tCtx.strokeStyle = 'rgba(0,0,0,0.28)';
+        tCtx.lineWidth = Math.max(2, fontSize * 0.18);
+        tCtx.strokeText(text, w - margin, h - margin);
+        tCtx.fillStyle = 'rgba(255,255,255,0.58)';
+    } else {
+        const dark = currentTheme.darkest || '#1a2b3c';
+        tCtx.fillStyle = d3.color(dark).copy({ opacity: 0.52 }).formatRgb();
+    }
+    tCtx.fillText(text, w - margin, h - margin);
+    tCtx.restore();
+}
+
+function sanitizeFilename(value) {
+    return (value || 'greatcircles')
+        .replace(/[\/\\?%*:|"<>]/g, '')
+        .replace(/\s+/g, '_')
+        .slice(0, 80) || 'greatcircles';
+}
+
+function greatCircleCoordinates(c1, c2, segments = 96) {
+    const interpolate = d3.geoInterpolate(c1, c2);
+    const coords = [];
+    for (let i = 0; i <= segments; i++) coords.push(interpolate(i / segments));
+    return coords;
+}
+
+function buildRangeRingFeature(km) {
+    const ring = d3.geoCircle()
+        .center(centerCity.coords)
+        .radius(km / 6371 * 180 / Math.PI)
+        .precision(1)();
+    return {
+        type: 'Feature',
+        properties: {
+            feature_type: 'range-ring',
+            origin_name: centerCity.name,
+            origin_lon: centerCity.coords[0],
+            origin_lat: centerCity.coords[1],
+            range_km: km,
+            name: `${centerCity.name} ${Math.round(km)} km range ring`
+        },
+        geometry: ring
+    };
+}
+
+function buildPointFeature(point, isCenter) {
+    return {
+        type: 'Feature',
+        properties: {
+            feature_type: 'point',
+            role: isCenter ? 'origin' : 'destination',
+            name: point.name,
+            distance_from_origin_km: isCenter || !centerCity ? 0 : Math.round(d3.geoDistance(centerCity.coords, point.coords) * 6371)
+        },
+        geometry: {
+            type: 'Point',
+            coordinates: point.coords
+        }
+    };
+}
+
+function buildGreatCircleFeature(point) {
+    const distanceKm = Math.round(d3.geoDistance(centerCity.coords, point.coords) * 6371);
+    return {
+        type: 'Feature',
+        properties: {
+            feature_type: 'great-circle',
+            origin_name: centerCity.name,
+            destination_name: point.name,
+            distance_km: distanceKm,
+            name: `${centerCity.name} to ${point.name}`
+        },
+        geometry: {
+            type: 'LineString',
+            coordinates: greatCircleCoordinates(centerCity.coords, point.coords)
+        }
+    };
+}
+
+function exportGeoJSON() {
+    if (!centerCity) {
+        setStatus('Set a center city first.');
+        return;
+    }
+
+    rangeRings = parseRangeRings();
+    const features = [];
+    rangeRings.forEach(km => features.push(buildRangeRingFeature(km)));
+    features.push(buildPointFeature(centerCity, true));
+    plottedCities.forEach(city => features.push(buildPointFeature(city, false)));
+    plottedCities.forEach(city => features.push(buildGreatCircleFeature(city)));
+
+    const geojson = {
+        type: 'FeatureCollection',
+        name: `${centerCity.name} great-circle range map`,
+        features
+    };
+
+    const ranges = rangeRings.length ? '_' + rangeRings.map(km => Math.round(km)).join('_') + 'km' : '';
+    const link = document.createElement('a');
+    const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
+    link.download = `${sanitizeFilename(centerCity.name)}${ranges}_greatcircles.geojson`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// RESIZE + PANEL
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function togglePanel() {
+    const panel = document.getElementById('controlPanel');
+    panel.classList.toggle('open');
+    document.getElementById('mobileToggle').setAttribute('aria-expanded', panel.classList.contains('open') ? 'true' : 'false');
+}
+function closePanelOnMobile() {
+    if (window.innerWidth <= 600) {
+        document.getElementById('controlPanel').classList.remove('open');
+        document.getElementById('mobileToggle').setAttribute('aria-expanded', 'false');
+    }
+}
+
+function resize() {
+    width = window.innerWidth; height = window.innerHeight;
+    canvas.width = width; canvas.height = height;
+    initialScale = Math.min(width, height) * 0.42;
+    projection.scale(clampScale(initialScale * currentZoomLevel)).translate([width/2, height/2]);
+    requestRender();
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// INTERACTION
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+let isDragging = false;
+
+canvas.addEventListener('mousedown', () => { isDragging = true; closePanelOnMobile(); });
+canvas.addEventListener('mouseup',   () => { isDragging = false; canvas.classList.remove('panning'); });
+canvas.addEventListener('mouseleave',() => { isDragging = false; canvas.classList.remove('panning'); });
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    if (e.shiftKey) {
+        canvas.classList.add('panning');
+        const t = projection.translate();
+        projection.translate([t[0] + e.movementX, t[1] + e.movementY]);
+    } else {
+        canvas.classList.remove('panning');
+        const k = 75 / projection.scale();
+        const r = projection.rotate();
+        projection.rotate([r[0] + e.movementX * k, r[1] - e.movementY * k]);
+    }
+    requestRender();
+});
+
+function touchCenter(touches) {
+    return [
+        (touches[0].clientX + touches[1].clientX) / 2,
+        (touches[0].clientY + touches[1].clientY) / 2
+    ];
+}
+
+function touchDistance(touches) {
+    return Math.hypot(
+        touches[1].clientX - touches[0].clientX,
+        touches[1].clientY - touches[0].clientY
+    );
+}
+
+// Touch: 1 finger = rotate, 2 fingers = pan + pinch zoom
+let lastTouches = [];
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    closePanelOnMobile();
+    lastTouches = [...e.touches];
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && lastTouches.length >= 1) {
+        const dx = e.touches[0].clientX - lastTouches[0].clientX;
+        const dy = e.touches[0].clientY - lastTouches[0].clientY;
+        const k  = 75 / projection.scale();
+        const r  = projection.rotate();
+        projection.rotate([r[0] + dx*k, r[1] - dy*k]);
+    } else if (e.touches.length === 2 && lastTouches.length === 2) {
+        const [ncx, ncy] = touchCenter(e.touches);
+        const [lcx, lcy] = touchCenter(lastTouches);
+        const lastDist = touchDistance(lastTouches);
+        const nextDist = touchDistance(e.touches);
+
+        const t   = projection.translate();
+        projection.translate([t[0] + ncx - lcx, t[1] + ncy - lcy]);
+
+        if (lastDist > 0 && nextDist > 0) {
+            zoomAt([ncx, ncy], nextDist / lastDist);
+        }
+    }
+    lastTouches = [...e.touches];
+    requestRender();
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+    lastTouches = [...e.touches];
+}, { passive: false });
+
+canvas.addEventListener('touchcancel', () => {
+    lastTouches = [];
+}, { passive: false });
+
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    closePanelOnMobile();
+    const factor = e.deltaY > 0 ? 0.92 : 1.08;
+    zoomAt([e.clientX, e.clientY], factor);
+    requestRender();
+}, { passive: false });
+
+window.addEventListener('resize', resize);
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// BOOT
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+document.getElementById('center-display').value = centerCity.name;
+document.getElementById('range-rings-input').value = '1000, 2000, 5000';
+document.getElementById('city-list-input').value = 'New York, Reykjavik, Cairo, Gibraltar';
+
+// Load raster + vector data in parallel
+const rasterPromise = loadRaster();
+loadLocalGazetteer();
+
+const vectorPromise = Promise.all([
+    d3.json('data/countries-50m.json'),
+    d3.json('data/ne_50m_lakes.geojson')
+]).then(([world, lakeData]) => {
+    land      = topojson.feature(world, world.objects.land);
+    countries = topojson.mesh(world, world.objects.countries, (a,b) => a !== b);
+    lakes     = lakeData;
+    vectorReady = true;
+    updateTheme();
+});
+
+// Wait for raster to show the globe; vector loads silently in background
+rasterPromise.then(() => {
+    document.getElementById('loading').classList.add('fade');
+    setTimeout(() => document.getElementById('loading').style.display = 'none', 650);
+    resize();
+    // Run default search
+    handleSearch();
+}).catch(err => {
+    document.getElementById('load-sub').textContent = err.message;
+});
+
+// If vector loads before user switches, it's already ready
+vectorPromise.catch(() => { /* vector is optional, fail silently */ });
+
+</script>
+</body>
+</html>

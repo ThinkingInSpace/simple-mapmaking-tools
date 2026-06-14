@@ -54,6 +54,8 @@ Tool links used by index.html:
 - OutlineMap/
 - Multirings/
 
+In the GitHub Pages version, these folders are included directly in this repo so the landing page links resolve under tools.thinkinginspace.net.
+
 BlueHost notes:
 
 - Folder names are case-sensitive on most hosting servers. Keep OutlineMap and Multirings capitalized if using this file unchanged.
