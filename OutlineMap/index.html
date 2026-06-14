@@ -400,7 +400,7 @@ function deriveCityBaseName(geocodeLabel, rawInput){
 }
 function displayCityShort(label, raw){ const s=(label||raw||"Map").split(",")[0].trim(); return s||"Map"; }
 function setHudStamp(){
-  hudStamp.innerHTML = `Azimuthal Equidistant Projection centered on ${currentCityDisplay}<br>www.mapspam.net/OutlineMap.html`;
+  hudStamp.innerHTML = `Azimuthal Equidistant Projection centered on ${currentCityDisplay}<br>@RhodesMaps | tools.thinkinginspace.net`;
   hudStamp.style.color = colors.border;
 }
 
@@ -654,20 +654,16 @@ function saveJPG(){
     // Draw SVG (includes ocean disc)
     ctx.drawImage(img,0,0,width,height);
 
-    // Two-line watermark (~9.4px)
-    const line1 = `Azimuthal Equidistant Projection centered on ${currentCityDisplay}`;
-    const line2 = "www.mapspam.net/OutlineMap.html";
-    const fontPx = 9.4;
-    const lh = fontPx * 1.25;
+    const text = "@RhodesMaps | tools.thinkinginspace.net";
+    const fontPx = Math.max(10, Math.round(Math.min(width, height) * 0.014));
+    const margin = Math.max(10, Math.round(fontPx * 1.1));
     ctx.font = `600 ${fontPx}px Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-    ctx.fillStyle = colors.border;
+    ctx.globalAlpha = 0.52;
+    ctx.fillStyle = colors.border || "#1a2b3c";
     ctx.textAlign = "right";
-    ctx.textBaseline = "alphabetic";
-    const x = width - 8;
-    const y2 = height - 8;
-    const y1 = y2 - lh;
-    ctx.fillText(line1, x, y1);
-    ctx.fillText(line2, x, y2);
+    ctx.textBaseline = "bottom";
+    ctx.fillText(text, width - margin, height - margin);
+    ctx.globalAlpha = 1;
 
     c.toBlob((b)=>{
       const a=document.createElement("a");
