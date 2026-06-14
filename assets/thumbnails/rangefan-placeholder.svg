@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+  <title id="title">Range Fan thumbnail placeholder</title>
+  <desc id="desc">Abstract map thumbnail showing a directional range fan.</desc>
+  <rect width="800" height="600" fill="#ece8df"/>
+  <path d="M0 390 C170 340 230 420 390 370 C550 320 620 360 800 300 L800 600 L0 600 Z" fill="#d6ddd8"/>
+  <path d="M0 210 C140 250 210 170 340 210 C520 265 585 190 800 225 L800 0 L0 0 Z" fill="#f7f4ee"/>
+  <circle cx="330" cy="330" r="6" fill="#222b33"/>
+  <path d="M330 330 L680 250 A358 358 0 0 1 610 470 Z" fill="#8a5f7d" opacity="0.26" stroke="#5f4268" stroke-width="6"/>
+  <path d="M330 330 L648 293" stroke="#fffdf8" stroke-width="3" opacity="0.8"/>
+  <text x="34" y="548" fill="#313a40" font-family="Aptos, Segoe UI, sans-serif" font-size="38" font-weight="700">Range Fan</text>
+</svg>

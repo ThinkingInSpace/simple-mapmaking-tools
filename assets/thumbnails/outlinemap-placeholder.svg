@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+  <title id="title">Outline Map thumbnail placeholder</title>
+  <desc id="desc">Abstract map thumbnail showing outlined regions.</desc>
+  <rect width="800" height="600" fill="#f4f0e8"/>
+  <path d="M154 170 L278 116 L374 154 L430 236 L390 330 L288 352 L194 300 Z" fill="#ffffff" stroke="#29323a" stroke-width="7"/>
+  <path d="M440 148 L590 130 L682 222 L646 340 L520 372 L428 286 Z" fill="#ffffff" stroke="#29323a" stroke-width="7"/>
+  <path d="M256 384 L360 370 L456 442 L418 520 L280 504 Z" fill="#ffffff" stroke="#29323a" stroke-width="7"/>
+  <path d="M470 372 L625 390 L690 485 L580 530 L472 482 Z" fill="#ffffff" stroke="#29323a" stroke-width="7"/>
+  <text x="34" y="548" fill="#313a40" font-family="Aptos, Segoe UI, sans-serif" font-size="38" font-weight="700">Outline Map</text>
+</svg>

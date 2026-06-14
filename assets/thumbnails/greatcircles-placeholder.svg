@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+  <title id="title">Great Circles thumbnail placeholder</title>
+  <desc id="desc">Abstract map thumbnail showing great circle routes.</desc>
+  <rect width="800" height="600" fill="#edf0ef"/>
+  <path d="M50 400 C170 320 250 430 360 350 C510 240 620 330 750 230" fill="none" stroke="#5f4268" stroke-width="7"/>
+  <path d="M90 250 C220 150 360 190 470 270 C560 335 650 360 735 315" fill="none" stroke="#222b33" stroke-width="5" opacity="0.82"/>
+  <circle cx="150" cy="350" r="10" fill="#222b33"/>
+  <circle cx="520" cy="275" r="10" fill="#222b33"/>
+  <circle cx="690" cy="250" r="10" fill="#222b33"/>
+  <path d="M0 455 C180 410 260 470 410 430 C560 390 660 420 800 370 L800 600 L0 600 Z" fill="#d8dedb"/>
+  <text x="34" y="548" fill="#313a40" font-family="Aptos, Segoe UI, sans-serif" font-size="38" font-weight="700">Great Circles</text>
+</svg>
