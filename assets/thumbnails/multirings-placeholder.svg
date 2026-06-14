@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+  <title id="title">Multirings thumbnail placeholder</title>
+  <desc id="desc">Abstract map thumbnail showing multiple range rings.</desc>
+  <rect width="800" height="600" fill="#eceff0"/>
+  <path d="M0 418 C160 360 255 430 410 382 C565 335 630 375 800 328 L800 600 L0 600 Z" fill="#d5ded9"/>
+  <g fill="none" stroke="#5f4268" stroke-width="5" opacity="0.72">
+    <circle cx="255" cy="285" r="72"/>
+    <circle cx="255" cy="285" r="126"/>
+    <circle cx="515" cy="250" r="72"/>
+    <circle cx="515" cy="250" r="126"/>
+    <circle cx="420" cy="390" r="72"/>
+    <circle cx="420" cy="390" r="126"/>
+  </g>
+  <g fill="#222b33">
+    <circle cx="255" cy="285" r="9"/>
+    <circle cx="515" cy="250" r="9"/>
+    <circle cx="420" cy="390" r="9"/>
+  </g>
+  <text x="34" y="548" fill="#313a40" font-family="Aptos, Segoe UI, sans-serif" font-size="38" font-weight="700">Multirings</text>
+</svg>
