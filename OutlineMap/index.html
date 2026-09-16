@@ -241,7 +241,7 @@ Keyboard: +/– to zoom, ← and → to rotate.
   <button id="zoomOut" class="inline-btn small-btn">–</button>
   <button id="zoomIn" class="inline-btn small-btn">+</button>
 </div>
-<input id="zoom" type="range" min="0.2" max="12" step="0.01" value="1" style="margin-top:4px;" />
+<input id="zoom" type="range" min="0.2" max="12" step="0.01" value="2.5" style="margin-top:4px;" />
 <div class="row inline">
       <label for="strokeW">Stroke</label>
       <select id="strokeW" style="width:120px">
@@ -291,6 +291,7 @@ let VW=1600, VH=900;
 let STROKE_W = 1.0;
 const DOT_DIAM = 10;
 const EXPORT_WIDTH = 1920;
+const START_ZOOM = 2.5;
 const WHEEL_FACTOR_LINE = 0.05;   // deltaMode==1
 const WHEEL_FACTOR_PAGE = 1;      // deltaMode==2
 const WHEEL_FACTOR_PIXEL = 0.002; // deltaMode==0
@@ -476,7 +477,7 @@ async function loadDataset(level){
 }
 
 /* ===== Projection & draw ===== */
-function makeProjection([lon,lat], roll=0){
+function makeProjection([lon,lat], roll=0, zoomFactor=START_ZOOM){
   const proj = d3.geoAzimuthalEquidistant()
     .rotate([-lon, -lat, roll])
     .clipAngle(179.9)
@@ -488,6 +489,13 @@ function makeProjection([lon,lat], roll=0){
   baseScale = s;
   minScale = s * 0.1;
   maxScale = s * 80;
+
+  // Start with the chosen city centered at a useful regional scale.
+  proj.scale(clamp(s * zoomFactor, minScale, maxScale));
+  proj.translate([0,0]);
+  const [x,y] = proj([lon,lat]);
+  proj.translate([VW/2 - x, VH/2 - y]);
+  document.getElementById("zoom").value = (proj.scale() / s).toFixed(2);
 
   return proj;
 }
@@ -744,13 +752,8 @@ rollEl.addEventListener("input", (e)=>{
   const v=parseFloat(e.target.value)||0;
   rollDeg=v;
   // Preserve zoom
-  const oldScale = projection.scale();
-  projection = makeProjection(center, rollDeg);
-  projection.scale(oldScale);
-  projection.translate([0,0]);
-  const pRaw = projection(center);
-  const tNew = [ VW/2 - pRaw[0], VH/2 - pRaw[1] ];
-  projection.translate(tNew);
+  const zoomFactor = projection.scale() / baseScale;
+  projection = makeProjection(center, rollDeg, zoomFactor);
   requestDraw();
 });
 
